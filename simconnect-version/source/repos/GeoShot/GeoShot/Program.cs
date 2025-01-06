@@ -46,7 +46,14 @@ namespace GeoShot
                             GCHandle handle = GCHandle.Alloc(data.dwData[0], GCHandleType.Pinned);
                             try
                             {
-                                Position position = (Position)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(Position));
+                                Position position = (Position)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(Position))!;
+
+                                // Print raw radians data
+                                Console.WriteLine($"Raw Lat (radians): {position.Latitude}, Raw Lon (radians): {position.Longitude}");
+
+                                // Convert from radians to degrees if the raw data seems valid
+                                position.Latitude = position.Latitude * (180 / Math.PI);
+                                position.Longitude = position.Longitude * (180 / Math.PI);
 
                                 // Validate and output the position data
                                 if (double.IsNaN(position.Latitude) || double.IsNaN(position.Longitude) ||
@@ -65,6 +72,7 @@ namespace GeoShot
                             {
                                 handle.Free();
                             }
+
                         }
                         else
                         {
@@ -83,8 +91,6 @@ namespace GeoShot
             }
         }
 
-
-
         // Initialize the SimConnect connection
         private static void InitializeSimConnect()
         {
@@ -99,23 +105,23 @@ namespace GeoShot
                 // Add data definitions for position (latitude and longitude)
                 simconnect.AddToDataDefinition(
                     (Enum)Definitions.Position,            // Corrected: Cast the enum to Enum type
-                    "PLANE LATITUDE", "degrees",
+                    "PLANE LATITUDE", "radians",
                     SIMCONNECT_DATATYPE.FLOAT64,
                     0.001f, 0);
                 simconnect.AddToDataDefinition(
                     (Enum)Definitions.Position,            // Corrected: Cast the enum to Enum type
-                    "PLANE LONGITUDE", "degrees",
+                    "PLANE LONGITUDE", "radians",
                     SIMCONNECT_DATATYPE.FLOAT64,
                     0.001f, 0);
 
                 // Request position data every second for the user aircraft
                 simconnect.RequestDataOnSimObject(
-                    (Enum)Requests.Position,              // Corrected: Cast the enum to Enum type
-                    (Enum)Definitions.Position,          // Corrected: Cast the enum to Enum type
-                    SimConnect.SIMCONNECT_OBJECT_ID_USER, // User aircraft
-                    SIMCONNECT_PERIOD.SECOND,             // Request data every second
-                    SIMCONNECT_DATA_REQUEST_FLAG.DEFAULT, // Use default flags
-                    0, 0, 0                               // Additional parameters (not needed here)
+                    (Enum)Requests.Position,                // The request ID
+                    (Enum)Definitions.Position,            // The data definition
+                    SimConnect.SIMCONNECT_OBJECT_ID_USER,   // Request data for the user aircraft
+                    SIMCONNECT_PERIOD.SECOND,               // Update rate (every second)
+                    SIMCONNECT_DATA_REQUEST_FLAG.DEFAULT,   // Default flags
+                    0, 0, 0                                 // Additional parameters
                 );
 
                 Console.WriteLine("Listening for position data...");

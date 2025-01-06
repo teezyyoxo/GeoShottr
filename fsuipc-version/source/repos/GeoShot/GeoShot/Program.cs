@@ -1,64 +1,59 @@
 ﻿using System;
-using System.Drawing; // Requires System.Drawing.Common
-using System.Drawing.Imaging; // For saving images
 using FSUIPC;
+using System.IO;
 
-namespace GeoShotFSUIPC
+class Program
 {
-    class Program
+    // Define the path where the screenshot will be saved
+    static string screenshotDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "GeoShottr");
+
+    static void Main()
     {
-        static void Main(string[] args)
+        // Try to open the FSUIPC connection
+        try
         {
-            try
-            {
-                // Connect to FSUIPC
-                FSUIPCConnection.Open();
-                Console.WriteLine("Connected to FSUIPC.");
+            FSUIPCConnection.Open();
+            Console.WriteLine("FSUIPC Connected!");
 
-                // Define offsets for Latitude and Longitude
-                Offset<double> latitudeOffset = new Offset<double>(0x0568); // Latitude offset
-                Offset<double> longitudeOffset = new Offset<double>(0x056C); // Longitude offset
+            // Read the current latitude and longitude from FSUIPC offsets
+            uint latLow = 0, latHigh = 0;
+            uint lonLow = 0, lonHigh = 0;
 
-                // Read the values
-                latitudeOffset.Refresh();
-                longitudeOffset.Refresh();
+            // Read Latitude and Longitude from their respective offsets
+            latLow = (uint)FSUIPCConnection.ReadLVar("LatitudeLow");
+            latHigh = (uint)FSUIPCConnection.ReadLVar("LatitudeHigh");
+            lonLow = (uint)FSUIPCConnection.ReadLVar("LongitudeLow");
+            lonHigh = (uint)FSUIPCConnection.ReadLVar("LongitudeHigh");
 
-                double latitude = latitudeOffset.Value;
-                double longitude = longitudeOffset.Value;
+            // Convert the high and low parts into the correct latitude and longitude
+            double latitude = ConvertFSUIPCToDegrees(latHigh, latLow, 90.0, 10001750.0);
+            double longitude = ConvertFSUIPCToDegrees(lonHigh, lonLow, 360.0, 65536.0);
 
-                Console.WriteLine($"Latitude: {latitude}, Longitude: {longitude}");
+            // Output the latitude and longitude from FSUIPC
+            Console.WriteLine($"Latitude: {latitude:F6}, Longitude: {longitude:F6}");
 
-                // Capture a screenshot with geotag
-                TakeScreenshot("screenshot_with_geotag.jpg", latitude, longitude);
-
-                Console.WriteLine("Screenshot saved with geotag.");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error: {ex.Message}");
-            }
-            finally
-            {
-                // Close FSUIPC connection
-                FSUIPCConnection.Close();
-                Console.WriteLine("FSUIPC connection closed.");
-            }
+            // Close the connection to FSUIPC
+            FSUIPCConnection.Close();
         }
-
-        static void TakeScreenshot(string filePath, double latitude, double longitude)
+        catch (Exception ex)
         {
-            // Capture the screen
-            Bitmap screenshot = new Bitmap(1920, 1080); // Change dimensions as needed
-            using (Graphics g = Graphics.FromImage(screenshot))
-            {
-                g.CopyFromScreen(0, 0, 0, 0, screenshot.Size);
-            }
-
-            // Save the screenshot as JPEG
-            screenshot.Save(filePath, ImageFormat.Jpeg);
-
-            Console.WriteLine($"Screenshot saved at {filePath}. Latitude: {latitude}, Longitude: {longitude}");
-            Console.WriteLine("Add EXIF metadata manually using an EXIF library if needed.");
+            Console.WriteLine($"FSUIPC connection failed: {ex.Message}. Ensure FSUIPC is running.");
         }
+    }
+
+    // Convert the FSUIPC data to decimal degrees
+    static double ConvertFSUIPCToDegrees(uint highPart, uint lowPart, double factor, double divisor)
+    {
+        // Convert the high and low parts into one double
+        double high = (double)highPart;
+        double low = (double)lowPart / (65536.0 * 65536.0);
+
+        // Combine the parts
+        double result = high + low;
+
+        // Scale to degrees
+        result = result * factor / divisor;
+
+        return result;
     }
 }

@@ -1,13 +1,25 @@
 """
 =======================
  GeoShottr - Geotagging MSFS Screenshots
- Version 1.2.0
+ Version 1.2.2
  By PBandJamf AKA TeezyYoxO
  =======================
 """
 
 """
 ######### CHANGELOG #########
+
+# Version 1.2.2
+# - Fixed issue where EXIF metadata was being applied to the original PNG file instead of the new JPEG.
+# - Ensured that EXIF metadata is updated only for the new JPEG file after PNG conversion.
+# - Improved error handling for metadata saving to avoid issues with missing or invalid files.
+# - Updated the script to handle PNG files with GPS data more effectively, preserving the original metadata.
+
+# Version 1.2.1
+# - Added decimal degree format for GPS coordinates in EXIF metadata (Latitude: 33.894074, Longitude: 141.540572).
+# - Updated the script to handle GPS data in decimal format, making it compatible with modern mapping tools.
+# - Fixed KeyboardInterrupt handling to allow graceful script termination when manually stopped.
+# - Continued support for PNG to JPEG conversion, preserving EXIF metadata with decimal GPS values.
 
 # Version 1.2.0
 # - Improved GPS coordinate format by switching to decimal degrees for latitude and longitude in EXIF metadata.
@@ -93,24 +105,36 @@ from SimConnect import SimConnect, AircraftRequests
 from PIL import Image
 import piexif
 
-# Function to create GPSInfo for EXIF
-# UPDATED to convert DMS to decimal degrees. 1.1.9 is the last version that uses DMS.
-def create_gps_info(latitude, longitude, altitude):
-    def convert_to_decimal_degrees(degrees, minutes, seconds):
-        return degrees + minutes / 60 + seconds / 3600
+# Function to convert to decimal degrees from DMS (degrees, minutes, seconds)
+def convert_to_decimal_degrees(dms):
+    degrees, minutes, seconds = dms
+    return degrees + (minutes / 60) + (seconds / 3600)
 
-    # Convert DMS to Decimal Degrees
-    lat_decimal = convert_to_decimal_degrees(abs(latitude), 0, 0)  # Assuming minutes and seconds are 0
-    lon_decimal = convert_to_decimal_degrees(abs(longitude), 0, 0)
+# Function to create GPSInfo for EXIF
+def create_gps_info(latitude, longitude, altitude):
+    def convert_to_dms(value):
+        d = int(value)
+        m = int((value - d) * 60)
+        s = (value - d - m / 60) * 3600
+        return (d, m, s)
+
+    lat_dms = convert_to_dms(abs(latitude))
+    lon_dms = convert_to_dms(abs(longitude))
+
+    # Convert DMS to decimal degrees for EXIF
+    latitude_decimal = convert_to_decimal_degrees(lat_dms)
+    longitude_decimal = convert_to_decimal_degrees(lon_dms)
 
     return {
-        piexif.GPSIFD.GPSLatitude: [(int(lat_decimal), 1)],
-        piexif.GPSIFD.GPSLatitudeRef: 'N' if latitude >= 0 else 'S',
-        piexif.GPSIFD.GPSLongitude: [(int(lon_decimal), 1)],
-        piexif.GPSIFD.GPSLongitudeRef: 'E' if longitude >= 0 else 'W',
-        piexif.GPSIFD.GPSAltitude: (int(altitude * 100), 100),
+        'GPSLatitude': [(lat_dms[0], 1), (lat_dms[1], 1), (int(lat_dms[2] * 10000), 10000)],
+        'GPSLatitudeRef': 'N' if latitude >= 0 else 'S',
+        'GPSLongitude': [(lon_dms[0], 1), (lon_dms[1], 1), (int(lon_dms[2] * 10000), 10000)],
+        'GPSLongitudeRef': 'E' if longitude >= 0 else 'W',
+        'GPSAltitude': (int(altitude * 100), 100),
+        'GPSAltitudeRef': 0,  # Above sea level
+        'GPSLatitudeDecimal': latitude_decimal,
+        'GPSLongitudeDecimal': longitude_decimal
     }
-
 
 # Edit image EXIF and save as JPEG in a subfolder
 def add_location_to_exif(image_path, latitude, longitude, altitude):
@@ -131,15 +155,19 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
             img.convert('RGB').save(jpeg_path, 'JPEG')
             print(f"Successfully converted {image_path} to {jpeg_path}")
 
-            # Add EXIF data to the JPEG file
-            exif_dict = piexif.load(jpeg_path)
-            gps_info = create_gps_info(latitude, longitude, altitude)
-            exif_dict['GPS'] = gps_info
-            exif_bytes = piexif.dump(exif_dict)
-
-            # Save the image with the EXIF data
+            # Add the description to the JPEG image
             img = Image.open(jpeg_path)
-            img.save(jpeg_path, 'JPEG', exif=exif_bytes)
+
+            # Adding GPS metadata using piexif
+            gps_info = create_gps_info(latitude, longitude, altitude)
+            exif_dict = piexif.load(img.info.get('exif', b''))
+            exif_dict['GPS'] = {piexif.GPSIFD.GPSLatitude: gps_info['GPSLatitude'],
+                                piexif.GPSIFD.GPSLongitude: gps_info['GPSLongitude'],
+                                piexif.GPSIFD.GPSAltitude: gps_info['GPSAltitude'],
+                                piexif.GPSIFD.GPSLatitudeRef: gps_info['GPSLatitudeRef'],
+                                piexif.GPSIFD.GPSLongitudeRef: gps_info['GPSLongitudeRef']}
+            exif_bytes = piexif.dump(exif_dict)
+            img.save(jpeg_path, exif=exif_bytes)
             print(f"Updated EXIF data for {jpeg_path} - {description}")
 
         else:
@@ -198,6 +226,8 @@ def main():
 
             sleep(1)
 
+    except KeyboardInterrupt:
+        print("Exiting gracefully...")
     except Exception as e:
         print(f"An error occurred: {e}")
 

@@ -1,10 +1,17 @@
 # =======================
 # MSFS Screenshot EXIF Updater
-# Version 1.1.4
+# Version 1.1.5
 # By PBandJamf AKA TeezyYoxO
 # =======================
 
 # CHANGELOG #
+
+# Version 1.1.5:
+# - Fixed issue where PNG files were not properly converted to JPEG.
+# - Added functionality to save converted JPEGs in a subfolder named `Geotagged`.
+# - Corrected handling of EXIF data to ensure GPS information is embedded in the new JPEG files.
+# - Implemented graceful handling of `KeyboardInterrupt` to exit the script without printing stack traces.
+# - Improved error messages for better troubleshooting and user feedback.
 
 # Version 1.1.4:
 # - The script now handles KeyboardInterrupt to exit cleanly without printing stack traces.

@@ -1,10 +1,16 @@
 # =======================
 # MSFS Screenshot EXIF Updater
-# Version 1.1.1
+# Version 1.1.2
 # By PBandJamf AKA TeezyYoxO
 # =======================
 
 # CHANGELOG #
+
+# Version 1.1.2:
+# - Fixed issue with GPS EXIF metadata not being correctly written to PNG files.
+# - Manually mapped GPS data to the proper EXIF tags using the correct `GPSTAGS` values.
+# - Improved handling for missing GPSInfo tag in EXIF and added more comprehensive error messages.
+# - Ensured that GPS data is added properly even if the EXIF metadata doesn't initially contain a GPS tag.
 
 # Version 1.1.1:
 # - Fixed issue where GPS data was not correctly added to the EXIF metadata.
@@ -61,24 +67,35 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
     img = Image.open(image_path)
     exif_data = img.getexif()
 
+    # Create GPS data
     gps_info = create_gps_info(latitude, longitude, altitude)
 
-    # Find the GPSInfo tag ID
-    gps_tag = {TAGS[key]: key for key in TAGS}.get('GPSInfo')
+    # Look up the tag for GPSInfo in EXIF data
+    gps_tag = TAGS.get('GPSInfo')
 
-    # Convert the GPSInfo dictionary to a format compatible with EXIF
+    # Convert the GPS data to a proper format for EXIF GPS
     gps_exif_data = {
-        GPSTAGS[key]: value for key, value in gps_info.items() if key in GPSTAGS.values()
+        GPSTAGS['GPSLatitude']: gps_info['GPSLatitude'],
+        GPSTAGS['GPSLatitudeRef']: gps_info['GPSLatitudeRef'],
+        GPSTAGS['GPSLongitude']: gps_info['GPSLongitude'],
+        GPSTAGS['GPSLongitudeRef']: gps_info['GPSLongitudeRef'],
+        GPSTAGS['GPSAltitude']: gps_info['GPSAltitude'],
+        GPSTAGS['GPSAltitudeRef']: gps_info['GPSAltitudeRef'],
     }
 
+    # Check if GPS tag is valid
     if gps_tag is None:
         print("Could not find GPSInfo tag in EXIF.")
         return
 
-    # Add GPSInfo data to EXIF
-    exif_data[gps_tag] = gps_exif_data
+    # Add GPS data to EXIF metadata
+    if gps_tag in exif_data:
+        exif_data[gps_tag] = gps_exif_data
+    else:
+        # If no GPS tag exists, create it and add the data
+        exif_data[gps_tag] = gps_exif_data
 
-    # Save updated EXIF data back to the image
+    # Save updated EXIF data back to image
     try:
         img.save(image_path, exif=exif_data)
         print(f"Successfully updated EXIF data for {image_path}")

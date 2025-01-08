@@ -1,7 +1,7 @@
 """
 =======================
  GeoShottr - Geotagging MSFS Screenshots
- Version 1.2.3.1
+ Version 1.2.3.2 (current)
  By PBandJamf AKA TeezyYoxO
  =======================
 """
@@ -14,6 +14,7 @@
 # - Created EXIF data from scratch with GPS coordinates, altitude, and description.
 # - Simplified handling of PNG to JPEG conversion with EXIF insertion.
 # - Ensured smoother workflow for screenshots without EXIF data.
+# - Realized that the EXIF standard uses DMS and there is no way to get around it. A custom EXIF field with the converted value would work, but... kinda pointless.
 
 # Version 1.2.3.1
 # - Reverted to a previously working version of the script.

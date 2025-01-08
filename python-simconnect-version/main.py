@@ -1,13 +1,31 @@
 """
 =======================
  GeoShottr - Geotagging MSFS Screenshots
- Version 1.2.2
+ Version 1.2.3.1
  By PBandJamf AKA TeezyYoxO
  =======================
 """
 
 """
 ######### CHANGELOG #########
+
+# Version 1.2.3.2
+# - Removed EXIF loading, assuming no EXIF data initially (for screenshots).
+# - Created EXIF data from scratch with GPS coordinates, altitude, and description.
+# - Simplified handling of PNG to JPEG conversion with EXIF insertion.
+# - Ensured smoother workflow for screenshots without EXIF data.
+
+# Version 1.2.3.1
+# - Reverted to a previously working version of the script.
+# - Improved EXIF data handling, especially when EXIF data is missing in newly created JPEG files.
+# - Simplified the conversion of PNG files to JPEG with proper EXIF metadata addition.
+# - Enhanced error handling during EXIF saving process.
+
+# Version 1.2.3
+# - Added error handling when EXIF data is missing in newly created JPEG files.
+# - Now the script creates an empty EXIF structure if none exists and adds GPS data.
+# - Improved robustness against missing or incomplete EXIF data during the metadata update process.
+# - Ensured that GPS data is correctly embedded in JPEG files even when EXIF metadata is initially absent.
 
 # Version 1.2.2
 # - Fixed issue where EXIF metadata was being applied to the original PNG file instead of the new JPEG.
@@ -158,14 +176,21 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
             # Add the description to the JPEG image
             img = Image.open(jpeg_path)
 
-            # Adding GPS metadata using piexif
+            # Create a new EXIF structure as there's no existing EXIF
+            exif_dict = {
+                "0th": {piexif.ImageIFD.Make: "Microsoft Flight Simulator", piexif.ImageIFD.Model: "Screenshot"},
+                "GPS": {}
+            }
+
+            # Add the GPS data to the EXIF
             gps_info = create_gps_info(latitude, longitude, altitude)
-            exif_dict = piexif.load(img.info.get('exif', b''))
             exif_dict['GPS'] = {piexif.GPSIFD.GPSLatitude: gps_info['GPSLatitude'],
                                 piexif.GPSIFD.GPSLongitude: gps_info['GPSLongitude'],
                                 piexif.GPSIFD.GPSAltitude: gps_info['GPSAltitude'],
                                 piexif.GPSIFD.GPSLatitudeRef: gps_info['GPSLatitudeRef'],
                                 piexif.GPSIFD.GPSLongitudeRef: gps_info['GPSLongitudeRef']}
+
+            # Convert EXIF data back to bytes and save the image
             exif_bytes = piexif.dump(exif_dict)
             img.save(jpeg_path, exif=exif_bytes)
             print(f"Updated EXIF data for {jpeg_path} - {description}")

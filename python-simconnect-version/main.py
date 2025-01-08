@@ -6,10 +6,10 @@
  =======================
 """
 """
-Geoshottr - A script for embedding GPS data into screenshot images from Microsoft Flight Simulator.
-
-Description:
-This script connects to Microsoft Flight Simulator via SimConnect to retrieve real-time GPS data (latitude, longitude, altitude) while the simulator is running. It then watches specified directories for new screenshot files (in PNG format by default). Upon detecting a new screenshot, the script extracts the GPS data from the simulator and embeds it into the image's EXIF metadata. The script also supports converting PNG screenshots to JPEG format and storing them in a subfolder named 'Geotagged'.
+This script connects to Microsoft Flight Simulator via SimConnect to retrieve real-time GPS data (latitude, longitude, altitude) while the simulator is running. 
+It then watches specified directories for new screenshot files (in PNG format by default). 
+Upon detecting a new screenshot, the script extracts the GPS data from the simulator and embeds it into the image's EXIF metadata. 
+The script also supports converting PNG screenshots to JPEG format and storing them in a subfolder named 'Geotagged'.
 
 Features:
 - Monitors specific directories for new screenshots.

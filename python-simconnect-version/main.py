@@ -1,13 +1,16 @@
 """
 =======================
  GeoShottr - Geotagging MSFS Screenshots
- Version 1.2.3.2 (current)
+ Version 1.2.3.3 (current)
  By PBandJamf AKA TeezyYoxO
  =======================
 """
 
 """
 ######### CHANGELOG #########
+
+# Version 1.2.3.3
+# - Removed one line of extraneous console output.
 
 # Version 1.2.3.2
 # - Removed EXIF loading, assuming no EXIF data initially (for screenshots).
@@ -245,7 +248,6 @@ def main():
 
                         # Add location data to EXIF and save as JPEG
                         add_location_to_exif(screenshot_path, latitude, longitude, altitude)
-                        print(f"Updated EXIF data for {new_file}.")
 
                 # Update the file set for the directory
                 existing_files[dir_path] = current_files

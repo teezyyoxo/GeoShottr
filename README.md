@@ -24,58 +24,32 @@
 ### Steps to Install
 
 1. Clone the repository:
-   ```bash
-   git clone https://github.com/teezyyoxo/geoshottr.git`` 
+   ```git clone https://github.com/teezyyoxo/geoshottr.git``` 
 
-2.  Navigate to the project folder:
-    
-    bash
-    
-    Copy code
-    
+2.  Navigate to the project folder:   
     `cd geoshottr/python-simconnect-version` 
     
-3.  Install required dependencies:
-    
-    bash
-    
-    Copy code
-    
+3.  Install required dependencies: 
     `pip install -r requirements.txt` 
     
 4.  (Optional) Set up an `.env` file to configure your screenshot directories:
-    
-    ini
-    
-    Copy code
-    
-    `SCREENSHOT_PATH_1="C:/path/to/screenshot/folder"
-    SCREENSHOT_PATH_2="D:/another/folder"` 
-    
-
-----------
+    - `SCREENSHOT_PATH_1="C:/path/to/screenshot/folder"`
+    - `SCREENSHOT_PATH_2="D:/another/folder"`
 
 ## Usage
 
 1.  Ensure Microsoft Flight Simulator is running and taking screenshots.
     
 2.  Run the script:
-    
-    bash
-    
-    Copy code
-    
     `python main.py` 
     
 3.  The script will:
-    
     -   Monitor specified screenshot directories for new images.
     -   Extract GPS data from Microsoft Flight Simulator (lat, long, altitude).
     -   Convert PNG screenshots to JPEG (if necessary) and save them in a subfolder `Geotagged`.
     -   Add EXIF geolocation metadata to the images.
 4.  You should see the geotagged images in the designated folder, ready for mapping or use in photo apps.
     
-
 ----------
 
 ## Configuration
@@ -89,12 +63,8 @@ To customize these directories, create a `.env` file in the project root directo
 
 Example `.env` file:
 
-ini
-
-Copy code
-
 `SCREENSHOT_PATH_1="C:/Users/YourUsername/Documents/FS2020_Screenshots"
-SCREENSHOT_PATH_2="E:/FlightSimScreenshots"` 
+ SCREENSHOT_PATH_2="E:/FlightSimScreenshots"` 
 
 ----------
 

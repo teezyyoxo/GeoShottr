@@ -1,10 +1,22 @@
 # =======================
 # MSFS Screenshot EXIF Updater
-# Version 1.0.0
+# Version 1.1.1
 # By PBandJamf AKA TeezyYoxO
 # =======================
 
 # CHANGELOG #
+
+# Version 1.1.1:
+# - Fixed issue where GPS data was not correctly added to the EXIF metadata.
+# - Updated EXIF handling to ensure GPS metadata is written under the correct tag (`GPSInfo`).
+# - Added better error handling for missing EXIF tags and issues during save operation.
+# - Ensured that only valid GPS keys are used in the EXIF data.
+
+# Version 1.1.0:
+# - Added support for monitoring multiple directories.
+# - Limited file processing to `.png` files containing "Microsoft Flight Simulator" in their names.
+# - Updated dynamic logging to print the actual monitored directories.
+# - Prints the full path and location data when a new screenshot is detected.
 
 # Version 1.0.0:
 # - Initial release.
@@ -50,13 +62,28 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
     exif_data = img.getexif()
 
     gps_info = create_gps_info(latitude, longitude, altitude)
+
+    # Find the GPSInfo tag ID
     gps_tag = {TAGS[key]: key for key in TAGS}.get('GPSInfo')
 
-    exif_data[gps_tag] = {
-        GPSTAGS[key]: value for key, value in gps_info.items()
+    # Convert the GPSInfo dictionary to a format compatible with EXIF
+    gps_exif_data = {
+        GPSTAGS[key]: value for key, value in gps_info.items() if key in GPSTAGS.values()
     }
 
-    img.save(image_path, exif=exif_data)
+    if gps_tag is None:
+        print("Could not find GPSInfo tag in EXIF.")
+        return
+
+    # Add GPSInfo data to EXIF
+    exif_data[gps_tag] = gps_exif_data
+
+    # Save updated EXIF data back to the image
+    try:
+        img.save(image_path, exif=exif_data)
+        print(f"Successfully updated EXIF data for {image_path}")
+    except Exception as e:
+        print(f"Failed to save EXIF data: {e}")
 
 # Main function to retrieve data and update EXIF
 def main():
@@ -67,35 +94,42 @@ def main():
 
         print("Connected to Microsoft Flight Simulator.")
 
-        # Wait for screenshot to appear
-        screenshot_dir = os.path.expanduser("~/Pictures")  # Adjust to your screenshot folder
-        print(f"Watching for screenshots in {screenshot_dir}...")
+        # Specify folders to monitor
+        screenshot_dirs = [
+            r"S:\MSFS Recordings\Microsoft Flight Simulator",
+            r"C:\Users\monte\Videos\Captures"
+        ]
+        print(f"Watching for screenshots in the following directories: {', '.join(screenshot_dirs)}")
 
-        existing_files = set(os.listdir(screenshot_dir))
+        # Initialize tracking of existing files in each directory
+        existing_files = {dir_path: set(os.listdir(dir_path)) for dir_path in screenshot_dirs}
 
         while True:
-            # Check for new screenshots
-            current_files = set(os.listdir(screenshot_dir))
-            new_files = current_files - existing_files
+            for dir_path in screenshot_dirs:
+                # Get current files in the directory
+                current_files = set(os.listdir(dir_path))
+                new_files = current_files - existing_files[dir_path]
 
-            if new_files:
-                screenshot_file = list(new_files)[0]
-                screenshot_path = os.path.join(screenshot_dir, screenshot_file)
+                for new_file in new_files:
+                    # Check if the file is a PNG and contains "Microsoft Flight Simulator"
+                    if new_file.lower().endswith(".png") and "Microsoft Flight Simulator" in new_file:
+                        screenshot_path = os.path.join(dir_path, new_file)
 
-                # Get aircraft location data
-                latitude = aq.get("PLANE_LATITUDE")
-                longitude = aq.get("PLANE_LONGITUDE")
-                altitude = aq.get("PLANE_ALTITUDE")
+                        # Get aircraft location data
+                        latitude = aq.get("PLANE_LATITUDE")
+                        longitude = aq.get("PLANE_LONGITUDE")
+                        altitude = aq.get("PLANE_ALTITUDE")
 
-                print(f"New screenshot detected: {screenshot_file}")
-                print(f"Latitude: {latitude}, Longitude: {longitude}, Altitude: {altitude}")
+                        print(f"New screenshot detected: {new_file}")
+                        print(f"Path: {screenshot_path}")
+                        print(f"Latitude: {latitude}, Longitude: {longitude}, Altitude: {altitude}")
 
-                # Add location data to EXIF
-                add_location_to_exif(screenshot_path, latitude, longitude, altitude)
-                print(f"Updated EXIF data for {screenshot_file}.")
+                        # Add location data to EXIF
+                        add_location_to_exif(screenshot_path, latitude, longitude, altitude)
+                        print(f"Updated EXIF data for {new_file}.")
 
-                # Update file set
-                existing_files = current_files
+                # Update the file set for the directory
+                existing_files[dir_path] = current_files
 
             sleep(1)
 

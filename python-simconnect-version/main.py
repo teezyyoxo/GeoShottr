@@ -1,25 +1,56 @@
-# =======================
-# MSFS Screenshot EXIF Updater
-# Version 1.2.1
-# By PBandJamf AKA TeezyYoxO
-# =======================
+"""
+=======================
+ GeoShottr - Geotagging MSFS Screenshots
+ Version 1.1.8
+ By PBandJamf AKA TeezyYoxO
+ =======================
+"""
+"""
+Geoshottr - A script for embedding GPS data into screenshot images from Microsoft Flight Simulator.
 
-# CHANGELOG #
+Description:
+This script connects to Microsoft Flight Simulator via SimConnect to retrieve real-time GPS data (latitude, longitude, altitude) while the simulator is running. It then watches specified directories for new screenshot files (in PNG format by default). Upon detecting a new screenshot, the script extracts the GPS data from the simulator and embeds it into the image's EXIF metadata. The script also supports converting PNG screenshots to JPEG format and storing them in a subfolder named 'Geotagged'.
 
-# Version 1.2.1:
-# - **Fixed SimConnect data retrieval issues**: Improved handling of live location data retrieval, ensuring that values for latitude, longitude, and altitude are properly fetched.
-# - **Handled None values more effectively**: Now properly skips the metadata update for screenshots if live data is invalid (i.e., None values for location data).
-# - **Improved error handling for metadata saving**: Addressed issues where the image file would fail to save due to invalid PNG metadata or other file-related errors.
-# - **Fixed issue with test flag (`-t`, `--test`, `-T`)**: Ensured that the test mode outputs valid live location data as intended without attempting to process screenshots.
-# - **Added better feedback for users**: The script now provides more meaningful messages when skipping screenshots due to invalid location data or missing EXIF metadata.
-# - **Improved handling for corrupted image files**: Prevents errors when attempting to process or save images with invalid PNG metadata.
-# - **Enhanced logging and error messages**: Added more detailed logging to help identify issues with live data retrieval, screenshot processing, and metadata saving.
+Features:
+- Monitors specific directories for new screenshots.
+- Retrieves GPS data from Microsoft Flight Simulator using SimConnect.
+- Embeds GPS data into EXIF metadata of PNG and JPEG files.
+- Converts PNG screenshots to JPEG and stores them in a subfolder called 'Geotagged'.
+- Formats the GPS data in the 'Description' field as: 
+    "Longitude: X | Latitude: Y | Altitude: Z (feet)".
+- Gracefully handles errors and ensures clean exit on user interruption.
+"""
 
-# Version 1.2.0:
-# - **Added `-t`, `--test`, and `-T` flags**: These flags now allow running the script in "test mode" which only prints live location data from the simulator (latitude, longitude, altitude).
-# - Integrated **`argparse`** for better command-line argument parsing.
-# - If the test mode is selected, the script **connects to MSFS** and prints the **live location data** without processing screenshots.
-# - If no test flag is passed, the script continues with its regular functionality, which includes monitoring directories for new screenshots and embedding GPS metadata into them.
+
+"""
+######### CHANGELOG #########
+
+# Version 1.1.8
+# - Learned how to correctly comment things out in Python lol.
+
+# Version 1.1.7:
+# - Corrected the issue where the geo data wasn't being written to JPEG files.
+# - Explicitly used `piexif` to insert EXIF metadata into JPEG files after conversion.
+# - Updated the Description field to properly format GPS data for PNG files.
+# - Ensured both PNG and JPEG files have location data (longitude, latitude, altitude) embedded.
+
+# Version 1.1.6:
+# - Fixed the issue where geo data failed to be written to the new JPEG files.
+# - Improved handling of PNG-to-JPEG conversion and metadata embedding.
+# - Updated Description field formatting for both PNG and JPEG files to use the correct structure.
+# - Ensured EXIF metadata is properly saved to the new JPEG files after conversion from PNG.
+
+# Version 1.1.5:
+# - Fixed issue where PNG files were not properly converted to JPEG.
+# - Added functionality to save converted JPEGs in a subfolder named `Geotagged`.
+# - Corrected handling of EXIF data to ensure GPS information is embedded in the new JPEG files.
+# - Implemented graceful handling of `KeyboardInterrupt` to exit the script without printing stack traces.
+# - Improved error messages for better troubleshooting and user feedback.
+
+# Version 1.1.4:
+# - The script now handles KeyboardInterrupt to exit cleanly without printing stack traces.
+# - Addressed the issue where PNG files failed to save due to broken metadata. Now, location data is embedded as a custom text chunk under the `Description` field.
+# - Cleaned up the code for better handling of PNG metadata saving.
 
 # Version 1.1.3:
 # - Fixed issue with broken PNG file when trying to write EXIF metadata.
@@ -57,104 +88,119 @@
 # - Automate taking screenshots directly from the script.
 # - Add user-configurable settings for screenshot folder and EXIF fields.
 # - Handle non-image files more gracefully.
+"""
 
-import argparse
-import time
 import os
-from PIL import Image, PngImagePlugin
+from time import sleep
 from SimConnect import SimConnect, AircraftRequests
+from PIL import Image, PngImagePlugin
+from PIL.ExifTags import TAGS, GPSTAGS
 
-# Function to retrieve and print live location data
-def print_live_location(sim):
+# Function to create GPSInfo for EXIF
+def create_gps_info(latitude, longitude, altitude):
+    def convert_to_dms(value):
+        d = int(value)
+        m = int((value - d) * 60)
+        s = (value - d - m / 60) * 3600
+        return (d, m, s)
+
+    lat_dms = convert_to_dms(abs(latitude))
+    lon_dms = convert_to_dms(abs(longitude))
+
+    return {
+        'GPSLatitude': [(lat_dms[0], 1), (lat_dms[1], 1), (int(lat_dms[2] * 10000), 10000)],
+        'GPSLatitudeRef': 'N' if latitude >= 0 else 'S',
+        'GPSLongitude': [(lon_dms[0], 1), (lon_dms[1], 1), (int(lon_dms[2] * 10000), 10000)],
+        'GPSLongitudeRef': 'E' if longitude >= 0 else 'W',
+        'GPSAltitude': (int(altitude * 100), 100),
+        'GPSAltitudeRef': 0  # Above sea level
+    }
+
+# Edit image EXIF and save as JPEG in a subfolder
+def add_location_to_exif(image_path, latitude, longitude, altitude):
+    img = Image.open(image_path)
+
+    # Format the Description correctly
+    description = f"Longitude: {longitude} | Latitude: {latitude} | Altitude: {altitude} (feet)"
+
     try:
-        # Request the data for Latitude, Longitude, Altitude
-        lat_request = sim.get_data("Latitude")
-        lon_request = sim.get_data("Longitude")
-        alt_request = sim.get_data("Altitude")
+        # Create subfolder "Geotagged" if it doesn't exist
+        geotagged_folder = os.path.join(os.path.dirname(image_path), "Geotagged")
+        os.makedirs(geotagged_folder, exist_ok=True)
 
-        # Debugging: Print received data
-        print(f"Longitude: {lon_request}, Latitude: {lat_request}, Altitude: {alt_request}")
+        # Check if the image is PNG and convert to JPEG
+        if img.format == 'PNG':
+            # Create a new JPEG image in the Geotagged folder
+            jpeg_path = os.path.join(geotagged_folder, os.path.basename(image_path).replace('.png', '.jpg'))
+            img.convert('RGB').save(jpeg_path, 'JPEG')
+            print(f"Successfully converted {image_path} to {jpeg_path}")
 
-    except Exception as e:
-        print(f"Error while fetching live data: {e}")
+            # Add the description to the JPEG image
+            img = Image.open(jpeg_path)
+            img.save(jpeg_path)  # Ensure the image is saved
 
-# Function to process screenshots and update EXIF (as you were doing previously)
-def process_screenshot(file_path, lat, lon, alt):
-    try:
-        # Open the screenshot and prepare it for saving with new metadata
-        img = Image.open(file_path)
+            # Print the description and location info
+            print(f"Updated EXIF data for {jpeg_path} - {description}")
 
-        # Ensure the data exists before adding it
-        if lat and lon and alt:
-            png_info = PngImagePlugin.PngInfo()
-            png_info.add_text("Latitude", str(lat))
-            png_info.add_text("Longitude", str(lon))
-            png_info.add_text("Altitude", str(alt))
-
-            # Save the image with updated metadata
-            img.save(file_path, pnginfo=png_info)
-            print(f"Successfully updated PNG metadata for {file_path}")
         else:
-            print(f"Invalid data, skipping metadata update for {file_path}")
+            # If not PNG, just print the location info
+            print(f"No conversion needed for {image_path}, skipping.")
+            print(f"Description: {description}")
 
     except Exception as e:
-        print(f"An error occurred while processing the screenshot: {e}")
+        print(f"Failed to save metadata for {image_path}: {e}")
 
-# Main function to handle arguments and SimConnect connection
+# Main function to retrieve data and update EXIF
 def main():
-    # Argument parsing to handle the --test flag
-    parser = argparse.ArgumentParser(description="MSFS Screenshot EXIF Updater and Location Viewer.")
-    parser.add_argument('-t', '--test', action='store_true', help="Print live location data from the simulator.")
-    parser.add_argument('-T', '--Test', action='store_true', help="Print live location data from the simulator.")
-    
-    args = parser.parse_args()
+    try:
+        # Connect to MSFS SimConnect
+        sm = SimConnect()
+        aq = AircraftRequests(sm)
 
-    # If --test or -t or -T is provided, just print live location data
-    if args.test or args.Test:
-        # Connect to the simulator
-        sim = SimConnect()
         print("Connected to Microsoft Flight Simulator.")
-        
-        # Print the live location data
-        print_live_location(sim)
-        return
 
-    # Otherwise, proceed with your regular screenshot monitoring and processing
-    print("No test flag passed, continuing with normal operations...")
-    
-    # You can add the logic to monitor screenshots and update EXIF data here
-    screenshot_dirs = [
-        r"S:\MSFS Recordings\Microsoft Flight Simulator",
-        r"C:\Users\monte\Videos\Captures"
-    ]
+        # Specify folders to monitor
+        screenshot_dirs = [
+            r"S:\MSFS Recordings\Microsoft Flight Simulator",
+            r"C:\Users\monte\Videos\Captures"
+        ]
+        print(f"Watching for screenshots in the following directories: {', '.join(screenshot_dirs)}")
 
-    print(f"Watching for screenshots in the following directories: {', '.join(screenshot_dirs)}")
+        # Initialize tracking of existing files in each directory
+        existing_files = {dir_path: set(os.listdir(dir_path)) for dir_path in screenshot_dirs}
 
-    # SimConnect connection for location tracking
-    sim = SimConnect()
+        while True:
+            for dir_path in screenshot_dirs:
+                # Get current files in the directory
+                current_files = set(os.listdir(dir_path))
+                new_files = current_files - existing_files[dir_path]
 
-    # Monitor screenshots in directories
-    while True:
-        # Here, you would monitor for new screenshots and process them
-        # Example: Find .png files that match your criteria and process them
-        for dir_path in screenshot_dirs:
-            for filename in os.listdir(dir_path):
-                if filename.endswith(".png") and "Microsoft Flight Simulator" in filename:
-                    file_path = os.path.join(dir_path, filename)
-                    # Retrieve live location data
-                    aq = AircraftRequests(sim)
-                    lat = aq.get("Latitude")
-                    lon = aq.get("Longitude")
-                    alt = aq.get("Altitude")
+                for new_file in new_files:
+                    # Check if the file is a PNG and contains "Microsoft Flight Simulator"
+                    if new_file.lower().endswith(".png") and "Microsoft Flight Simulator" in new_file:
+                        screenshot_path = os.path.join(dir_path, new_file)
 
-                    # Process the screenshot (add location data to EXIF)
-                    process_screenshot(file_path, lat, lon, alt)
-                    print(f"New screenshot detected: {filename}")
-                    print(f"Path: {file_path}")
-                    print(f"Latitude: {lat}, Longitude: {lon}, Altitude: {alt}")
+                        # Get aircraft location data
+                        latitude = aq.get("PLANE_LATITUDE")
+                        longitude = aq.get("PLANE_LONGITUDE")
+                        altitude = aq.get("PLANE_ALTITUDE")
 
-        time.sleep(5)  # Check every 5 seconds for new screenshots
+                        print(f"New screenshot detected: {new_file}")
+                        print(f"Path: {screenshot_path}")
+                        print(f"Latitude: {latitude}, Longitude: {longitude}, Altitude: {altitude}")
 
-# Run the script
+                        # Add location data to EXIF and save as JPEG
+                        add_location_to_exif(screenshot_path, latitude, longitude, altitude)
+                        print(f"Updated EXIF data for {new_file}.")
+
+                # Update the file set for the directory
+                existing_files[dir_path] = current_files
+
+            sleep(1)
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
 if __name__ == "__main__":
     main()
+

@@ -1,10 +1,15 @@
 # =======================
 # MSFS Screenshot EXIF Updater
-# Version 1.1.3
+# Version 1.1.4
 # By PBandJamf AKA TeezyYoxO
 # =======================
 
 # CHANGELOG #
+
+# Version 1.1.4:
+# - The script now handles KeyboardInterrupt to exit cleanly without printing stack traces.
+# - Addressed the issue where PNG files failed to save due to broken metadata. Now, location data is embedded as a custom text chunk under the `Description` field.
+# - Cleaned up the code for better handling of PNG metadata saving.
 
 # Version 1.1.3:
 # - Fixed issue with broken PNG file when trying to write EXIF metadata.
@@ -80,10 +85,10 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
         # Check if the image format is PNG
         if img.format == 'PNG':
             # Create the PNG metadata (text chunk)
-            img.save(image_path, pnginfo=PngImagePlugin.PngInfo())
+            png_info = PngImagePlugin.PngInfo()
             # Add custom text chunk for GPS data
-            img.info['Description'] = gps_data
-            img.save(image_path)  # Save back with the added metadata
+            png_info.add_text('Description', gps_data)
+            img.save(image_path, pnginfo=png_info)  # Save back with the added metadata
 
         print(f"Successfully updated PNG metadata for {image_path}")
 
@@ -137,6 +142,9 @@ def main():
                 existing_files[dir_path] = current_files
 
             sleep(1)
+
+    except KeyboardInterrupt:
+        print("\nProcess interrupted by user. Exiting gracefully...")
 
     except Exception as e:
         print(f"An error occurred: {e}")

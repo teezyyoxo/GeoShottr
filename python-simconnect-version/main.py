@@ -10,7 +10,10 @@
 ######### CHANGELOG #########
 
 # Version 1.1.9
-# - Removed unneeded stuff, and added to the Readme ;)
+# - Integrated piexif for handling EXIF metadata in JPEG files.
+# - Updated EXIF data handling to include proper GPS location and altitude information in JPEG files.
+# - Ensured PNG to JPEG conversion maintains EXIF data.
+# - Improved error handling for metadata saving.
 
 # Version 1.1.8
 # - Learned how to correctly comment things out in Python lol.
@@ -80,8 +83,8 @@
 import os
 from time import sleep
 from SimConnect import SimConnect, AircraftRequests
-from PIL import Image, PngImagePlugin
-from PIL.ExifTags import TAGS, GPSTAGS
+from PIL import Image
+import piexif
 
 # Function to create GPSInfo for EXIF
 def create_gps_info(latitude, longitude, altitude):
@@ -95,12 +98,11 @@ def create_gps_info(latitude, longitude, altitude):
     lon_dms = convert_to_dms(abs(longitude))
 
     return {
-        'GPSLatitude': [(lat_dms[0], 1), (lat_dms[1], 1), (int(lat_dms[2] * 10000), 10000)],
-        'GPSLatitudeRef': 'N' if latitude >= 0 else 'S',
-        'GPSLongitude': [(lon_dms[0], 1), (lon_dms[1], 1), (int(lon_dms[2] * 10000), 10000)],
-        'GPSLongitudeRef': 'E' if longitude >= 0 else 'W',
-        'GPSAltitude': (int(altitude * 100), 100),
-        'GPSAltitudeRef': 0  # Above sea level
+        piexif.GPSIFD.GPSLatitude: [(lat_dms[0], 1), (lat_dms[1], 1), (int(lat_dms[2] * 10000), 10000)],
+        piexif.GPSIFD.GPSLatitudeRef: 'N' if latitude >= 0 else 'S',
+        piexif.GPSIFD.GPSLongitude: [(lon_dms[0], 1), (lon_dms[1], 1), (int(lon_dms[2] * 10000), 10000)],
+        piexif.GPSIFD.GPSLongitudeRef: 'E' if longitude >= 0 else 'W',
+        piexif.GPSIFD.GPSAltitude: (int(altitude * 100), 100),
     }
 
 # Edit image EXIF and save as JPEG in a subfolder
@@ -122,11 +124,15 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
             img.convert('RGB').save(jpeg_path, 'JPEG')
             print(f"Successfully converted {image_path} to {jpeg_path}")
 
-            # Add the description to the JPEG image
-            img = Image.open(jpeg_path)
-            img.save(jpeg_path)  # Ensure the image is saved
+            # Add EXIF data to the JPEG file
+            exif_dict = piexif.load(jpeg_path)
+            gps_info = create_gps_info(latitude, longitude, altitude)
+            exif_dict['GPS'] = gps_info
+            exif_bytes = piexif.dump(exif_dict)
 
-            # Print the description and location info
+            # Save the image with the EXIF data
+            img = Image.open(jpeg_path)
+            img.save(jpeg_path, 'JPEG', exif=exif_bytes)
             print(f"Updated EXIF data for {jpeg_path} - {description}")
 
         else:
@@ -190,4 +196,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

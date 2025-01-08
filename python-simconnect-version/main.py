@@ -1,29 +1,16 @@
 """
 =======================
  GeoShottr - Geotagging MSFS Screenshots
- Version 1.1.8
+ Version 1.1.9
  By PBandJamf AKA TeezyYoxO
  =======================
 """
-"""
-This script connects to Microsoft Flight Simulator via SimConnect to retrieve real-time GPS data (latitude, longitude, altitude) while the simulator is running. 
-It then watches specified directories for new screenshot files (in PNG format by default). 
-Upon detecting a new screenshot, the script extracts the GPS data from the simulator and embeds it into the image's EXIF metadata. 
-The script also supports converting PNG screenshots to JPEG format and storing them in a subfolder named 'Geotagged'.
-
-Features:
-- Monitors specific directories for new screenshots.
-- Retrieves GPS data from Microsoft Flight Simulator using SimConnect.
-- Embeds GPS data into EXIF metadata of PNG and JPEG files.
-- Converts PNG screenshots to JPEG and stores them in a subfolder called 'Geotagged'.
-- Formats the GPS data in the 'Description' field as: 
-    "Longitude: X | Latitude: Y | Altitude: Z (feet)".
-- Gracefully handles errors and ensures clean exit on user interruption.
-"""
-
 
 """
 ######### CHANGELOG #########
+
+# Version 1.1.9
+# - Removed unneeded stuff, and added to the Readme ;)
 
 # Version 1.1.8
 # - Learned how to correctly comment things out in Python lol.

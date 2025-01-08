@@ -1,5 +1,4 @@
-
-``# Geoshottr
+# Geoshottr
 
 **Geoshottr** is a Python-based tool that automatically adds geolocation metadata (latitude, longitude, and altitude) to your Microsoft Flight Simulator screenshots. It detects screenshots saved by the game, retrieves geospatial data, and embeds the information into the images, so you can view them on a map or use them in photo apps that support geotagging.
 

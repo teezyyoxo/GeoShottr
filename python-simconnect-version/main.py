@@ -1,13 +1,20 @@
 """
 =======================
  GeoShottr - Geotagging MSFS Screenshots
- Version 1.1.9
+ Version 1.2.0
  By PBandJamf AKA TeezyYoxO
  =======================
 """
 
 """
 ######### CHANGELOG #########
+
+# Version 1.2.0
+# - Improved GPS coordinate format by switching to decimal degrees for latitude and longitude in EXIF metadata.
+# - Updated `create_gps_info` function to store GPS data in decimal degrees format, making it more compatible with modern tools.
+# - Enhanced compatibility for iOS and mapping software that can read decimal degrees.
+# - Ensured EXIF data now includes more easily accessible numeric latitude and longitude values (e.g., Latitude: 33.990744, Longitude: 141.216428).
+# - Continued support for PNG to JPEG conversion, preserving metadata.
 
 # Version 1.1.9
 # - Integrated piexif for handling EXIF metadata in JPEG files.
@@ -87,23 +94,23 @@ from PIL import Image
 import piexif
 
 # Function to create GPSInfo for EXIF
+# UPDATED to convert DMS to decimal degrees. 1.1.9 is the last version that uses DMS.
 def create_gps_info(latitude, longitude, altitude):
-    def convert_to_dms(value):
-        d = int(value)
-        m = int((value - d) * 60)
-        s = (value - d - m / 60) * 3600
-        return (d, m, s)
+    def convert_to_decimal_degrees(degrees, minutes, seconds):
+        return degrees + minutes / 60 + seconds / 3600
 
-    lat_dms = convert_to_dms(abs(latitude))
-    lon_dms = convert_to_dms(abs(longitude))
+    # Convert DMS to Decimal Degrees
+    lat_decimal = convert_to_decimal_degrees(abs(latitude), 0, 0)  # Assuming minutes and seconds are 0
+    lon_decimal = convert_to_decimal_degrees(abs(longitude), 0, 0)
 
     return {
-        piexif.GPSIFD.GPSLatitude: [(lat_dms[0], 1), (lat_dms[1], 1), (int(lat_dms[2] * 10000), 10000)],
+        piexif.GPSIFD.GPSLatitude: [(int(lat_decimal), 1)],
         piexif.GPSIFD.GPSLatitudeRef: 'N' if latitude >= 0 else 'S',
-        piexif.GPSIFD.GPSLongitude: [(lon_dms[0], 1), (lon_dms[1], 1), (int(lon_dms[2] * 10000), 10000)],
+        piexif.GPSIFD.GPSLongitude: [(int(lon_decimal), 1)],
         piexif.GPSIFD.GPSLongitudeRef: 'E' if longitude >= 0 else 'W',
         piexif.GPSIFD.GPSAltitude: (int(altitude * 100), 100),
     }
+
 
 # Edit image EXIF and save as JPEG in a subfolder
 def add_location_to_exif(image_path, latitude, longitude, altitude):

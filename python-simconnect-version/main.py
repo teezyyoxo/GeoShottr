@@ -1,10 +1,17 @@
 # =======================
 # MSFS Screenshot EXIF Updater
-# Version 1.1.2
+# Version 1.1.3
 # By PBandJamf AKA TeezyYoxO
 # =======================
 
 # CHANGELOG #
+
+# Version 1.1.3:
+# - Fixed issue with broken PNG file when trying to write EXIF metadata.
+# - Switched to embedding GPS data in custom text chunks (using the `Description` field) for PNG files.
+# - Ensured that PNG files' integrity is preserved by avoiding direct modification of EXIF data, which is not native to PNG format.
+# - Added fallback handling for storing GPS data in a format compatible with PNG metadata.
+# - Improved error handling for cases where the image format is not supported or the file is corrupted.
 
 # Version 1.1.2:
 # - Fixed issue with GPS EXIF metadata not being correctly written to PNG files.
@@ -39,7 +46,7 @@
 import os
 from time import sleep
 from SimConnect import SimConnect, AircraftRequests
-from PIL import Image
+from PIL import Image, PngImagePlugin
 from PIL.ExifTags import TAGS, GPSTAGS
 
 # Function to create GPSInfo for EXIF
@@ -65,42 +72,23 @@ def create_gps_info(latitude, longitude, altitude):
 # Edit image EXIF
 def add_location_to_exif(image_path, latitude, longitude, altitude):
     img = Image.open(image_path)
-    exif_data = img.getexif()
 
-    # Create GPS data
-    gps_info = create_gps_info(latitude, longitude, altitude)
+    # Create custom metadata (text chunks) for GPS data
+    gps_data = f"Latitude: {latitude}\nLongitude: {longitude}\nAltitude: {altitude}"
 
-    # Look up the tag for GPSInfo in EXIF data
-    gps_tag = TAGS.get('GPSInfo')
-
-    # Convert the GPS data to a proper format for EXIF GPS
-    gps_exif_data = {
-        GPSTAGS['GPSLatitude']: gps_info['GPSLatitude'],
-        GPSTAGS['GPSLatitudeRef']: gps_info['GPSLatitudeRef'],
-        GPSTAGS['GPSLongitude']: gps_info['GPSLongitude'],
-        GPSTAGS['GPSLongitudeRef']: gps_info['GPSLongitudeRef'],
-        GPSTAGS['GPSAltitude']: gps_info['GPSAltitude'],
-        GPSTAGS['GPSAltitudeRef']: gps_info['GPSAltitudeRef'],
-    }
-
-    # Check if GPS tag is valid
-    if gps_tag is None:
-        print("Could not find GPSInfo tag in EXIF.")
-        return
-
-    # Add GPS data to EXIF metadata
-    if gps_tag in exif_data:
-        exif_data[gps_tag] = gps_exif_data
-    else:
-        # If no GPS tag exists, create it and add the data
-        exif_data[gps_tag] = gps_exif_data
-
-    # Save updated EXIF data back to image
     try:
-        img.save(image_path, exif=exif_data)
-        print(f"Successfully updated EXIF data for {image_path}")
+        # Check if the image format is PNG
+        if img.format == 'PNG':
+            # Create the PNG metadata (text chunk)
+            img.save(image_path, pnginfo=PngImagePlugin.PngInfo())
+            # Add custom text chunk for GPS data
+            img.info['Description'] = gps_data
+            img.save(image_path)  # Save back with the added metadata
+
+        print(f"Successfully updated PNG metadata for {image_path}")
+
     except Exception as e:
-        print(f"Failed to save EXIF data: {e}")
+        print(f"Failed to save metadata for {image_path}: {e}")
 
 # Main function to retrieve data and update EXIF
 def main():

@@ -1,10 +1,44 @@
-# =======================
-# MSFS Screenshot EXIF Updater
-# Version 1.1.5
-# By PBandJamf AKA TeezyYoxO
-# =======================
+"""
+=======================
+ GeoShottr - Geotagging MSFS Screenshots
+ Version 1.1.8
+ By PBandJamf AKA TeezyYoxO
+ =======================
+"""
+"""
+Geoshottr - A script for embedding GPS data into screenshot images from Microsoft Flight Simulator.
 
-# CHANGELOG #
+Description:
+This script connects to Microsoft Flight Simulator via SimConnect to retrieve real-time GPS data (latitude, longitude, altitude) while the simulator is running. It then watches specified directories for new screenshot files (in PNG format by default). Upon detecting a new screenshot, the script extracts the GPS data from the simulator and embeds it into the image's EXIF metadata. The script also supports converting PNG screenshots to JPEG format and storing them in a subfolder named 'Geotagged'.
+
+Features:
+- Monitors specific directories for new screenshots.
+- Retrieves GPS data from Microsoft Flight Simulator using SimConnect.
+- Embeds GPS data into EXIF metadata of PNG and JPEG files.
+- Converts PNG screenshots to JPEG and stores them in a subfolder called 'Geotagged'.
+- Formats the GPS data in the 'Description' field as: 
+    "Longitude: X | Latitude: Y | Altitude: Z (feet)".
+- Gracefully handles errors and ensures clean exit on user interruption.
+"""
+
+
+"""
+######### CHANGELOG #########
+
+# Version 1.1.8
+# - Learned how to correctly comment things out in Python lol.
+
+# Version 1.1.7:
+# - Corrected the issue where the geo data wasn't being written to JPEG files.
+# - Explicitly used `piexif` to insert EXIF metadata into JPEG files after conversion.
+# - Updated the Description field to properly format GPS data for PNG files.
+# - Ensured both PNG and JPEG files have location data (longitude, latitude, altitude) embedded.
+
+# Version 1.1.6:
+# - Fixed the issue where geo data failed to be written to the new JPEG files.
+# - Improved handling of PNG-to-JPEG conversion and metadata embedding.
+# - Updated Description field formatting for both PNG and JPEG files to use the correct structure.
+# - Ensured EXIF metadata is properly saved to the new JPEG files after conversion from PNG.
 
 # Version 1.1.5:
 # - Fixed issue where PNG files were not properly converted to JPEG.
@@ -54,6 +88,7 @@
 # - Automate taking screenshots directly from the script.
 # - Add user-configurable settings for screenshot folder and EXIF fields.
 # - Handle non-image files more gracefully.
+"""
 
 import os
 from time import sleep
@@ -81,23 +116,36 @@ def create_gps_info(latitude, longitude, altitude):
         'GPSAltitudeRef': 0  # Above sea level
     }
 
-# Edit image EXIF
+# Edit image EXIF and save as JPEG in a subfolder
 def add_location_to_exif(image_path, latitude, longitude, altitude):
     img = Image.open(image_path)
 
-    # Create custom metadata (text chunks) for GPS data
-    gps_data = f"Latitude: {latitude}\nLongitude: {longitude}\nAltitude: {altitude}"
+    # Format the Description correctly
+    description = f"Longitude: {longitude} | Latitude: {latitude} | Altitude: {altitude} (feet)"
 
     try:
-        # Check if the image format is PNG
-        if img.format == 'PNG':
-            # Create the PNG metadata (text chunk)
-            png_info = PngImagePlugin.PngInfo()
-            # Add custom text chunk for GPS data
-            png_info.add_text('Description', gps_data)
-            img.save(image_path, pnginfo=png_info)  # Save back with the added metadata
+        # Create subfolder "Geotagged" if it doesn't exist
+        geotagged_folder = os.path.join(os.path.dirname(image_path), "Geotagged")
+        os.makedirs(geotagged_folder, exist_ok=True)
 
-        print(f"Successfully updated PNG metadata for {image_path}")
+        # Check if the image is PNG and convert to JPEG
+        if img.format == 'PNG':
+            # Create a new JPEG image in the Geotagged folder
+            jpeg_path = os.path.join(geotagged_folder, os.path.basename(image_path).replace('.png', '.jpg'))
+            img.convert('RGB').save(jpeg_path, 'JPEG')
+            print(f"Successfully converted {image_path} to {jpeg_path}")
+
+            # Add the description to the JPEG image
+            img = Image.open(jpeg_path)
+            img.save(jpeg_path)  # Ensure the image is saved
+
+            # Print the description and location info
+            print(f"Updated EXIF data for {jpeg_path} - {description}")
+
+        else:
+            # If not PNG, just print the location info
+            print(f"No conversion needed for {image_path}, skipping.")
+            print(f"Description: {description}")
 
     except Exception as e:
         print(f"Failed to save metadata for {image_path}: {e}")
@@ -141,7 +189,7 @@ def main():
                         print(f"Path: {screenshot_path}")
                         print(f"Latitude: {latitude}, Longitude: {longitude}, Altitude: {altitude}")
 
-                        # Add location data to EXIF
+                        # Add location data to EXIF and save as JPEG
                         add_location_to_exif(screenshot_path, latitude, longitude, altitude)
                         print(f"Updated EXIF data for {new_file}.")
 
@@ -150,11 +198,9 @@ def main():
 
             sleep(1)
 
-    except KeyboardInterrupt:
-        print("\nProcess interrupted by user. Exiting gracefully...")
-
     except Exception as e:
         print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
     main()
+

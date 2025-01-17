@@ -1,7 +1,7 @@
 """
 =======================
  GeoShottr - Geotagging MSFS Screenshots
- Version 1.2.4 (current)
+ Version 1.2.6 (current)
  By PBandJamf AKA TeezyYoxO
  =======================
 """
@@ -134,14 +134,6 @@
 # - Automate taking screenshots directly from the script.
 # - Add user-configurable settings for screenshot folder and EXIF fields.
 # - Handle non-image files more gracefully.
-"""
-
-"""
-=======================
- GeoShottr - Geotagging MSFS Screenshots
- Version 1.2.5 (current)
- By PBandJamf AKA TeezyYoxO
- =======================
 """
 
 ## BEGIN! ##

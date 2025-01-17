@@ -9,6 +9,11 @@
 """
 ######### CHANGELOG #########
 
+# Version 1.2.5
+# Fixed processing of super-resolution screenshots to handle both large and standard images effectively.
+# Added validation for PNG and other image types when using OpenCV for super-resolution images.
+# Reworked error handling during image loading and EXIF data insertion to avoid unexpected script failures.
+
 # Version 1.2.4
 # - Super-Resolution Support: Added OpenCV handling for "super-resolution" screenshots (e.g., 5120x2880 from NVIDIA overlay).
 # - Updated EXIF geotagging: Enhanced EXIF update with GPS data (latitude, longitude, altitude).
@@ -127,6 +132,16 @@
 # - Handle non-image files more gracefully.
 """
 
+"""
+=======================
+ GeoShottr - Geotagging MSFS Screenshots
+ Version 1.2.5 (current)
+ By PBandJamf AKA TeezyYoxO
+ =======================
+"""
+
+## BEGIN! ##
+
 import os
 from time import sleep
 from SimConnect import SimConnect, AircraftRequests
@@ -168,22 +183,6 @@ def create_gps_info(latitude, longitude, altitude):
         'GPSLongitudeDecimal': longitude_decimal
     }
 
-# Detect and process super-resolution screenshots
-if image_path.lower().startswith("microsoft flight simulator super-resolution"):
-    print(f"Detected super-resolution screenshot, using OpenCV for processing.")
-    try:
-        img = cv2.imread(image_path)  # Attempt to read using OpenCV
-        if img is None:
-            raise ValueError(f"OpenCV cannot open the image: {image_path}")
-        
-        # If it's a valid image, convert BGR to RGB
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img_pil = Image.fromarray(img)  # Convert to PIL Image for further handling
-    except Exception as e:
-        print(f"Error processing super-resolution image: {e}")
-        return  # Skip further processing if the image is corrupted or invalid
-
-
 # Function to add EXIF data (geotagging) to images
 def add_location_to_exif(image_path, latitude, longitude, altitude):
     if latitude is None or longitude is None:
@@ -193,6 +192,12 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
     try:
         # Open image
         image = Image.open(image_path)
+
+        # Check if the image has EXIF data
+        exif_data = image.info.get("exif", None)
+        if exif_data is None:
+            print(f"No EXIF data found in {image_path}. Skipping EXIF update.")
+            return
 
         # Convert latitude and longitude to EXIF format
         gps_info = {
@@ -204,7 +209,7 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
         }
 
         # Prepare EXIF data
-        exif_dict = piexif.load(image.info["exif"] if "exif" in image.info else None)
+        exif_dict = piexif.load(exif_data) if exif_data else {}
         exif_dict['GPS'] = gps_info
 
         # Insert EXIF data into image
@@ -222,6 +227,26 @@ def convert_to_dms(degree):
     minutes = int((degree - degrees) * 60)
     seconds = (degree - degrees - minutes / 60) * 3600
     return ((degrees, 1), (minutes, 1), (seconds * 100, 100))
+
+# Function to handle super-resolution screenshots
+def handle_super_resolution_image(image_path):
+    if image_path.lower().startswith("microsoft flight simulator super-resolution"):
+        print(f"Detected super-resolution screenshot, using OpenCV for processing.")
+        try:
+            # Check if the file is a valid PNG before processing with OpenCV
+            if image_path.lower().endswith('.png'):
+                raise ValueError(f"PNG file detected. Skipping OpenCV processing for {image_path}")
+
+            img = cv2.imread(image_path)  # Attempt to read using OpenCV
+            if img is None:
+                raise ValueError(f"OpenCV cannot open the image: {image_path}")
+
+            # If it's a valid image, convert BGR to RGB
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img_pil = Image.fromarray(img)  # Convert to PIL Image for further handling
+        except Exception as e:
+            print(f"Error processing super-resolution image: {e}")
+            return  # Skip further processing if the image is corrupted or invalid
 
 # Main function to retrieve data and update EXIF
 def main():
@@ -264,11 +289,8 @@ def main():
 
                         # Handle super-resolution images
                         if "Super-Resolution" in new_file:
-                            print("Detected super-resolution screenshot, using OpenCV for processing.")
-                            # Handle larger images
-                            add_location_to_exif(screenshot_path, latitude, longitude, altitude)
+                            handle_super_resolution_image(screenshot_path)
                         else:
-                            # Handle standard size PNGs
                             add_location_to_exif(screenshot_path, latitude, longitude, altitude)
 
                 # Update the file set for the directory

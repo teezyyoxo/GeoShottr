@@ -14,6 +14,9 @@
 - **EXIF Metadata**: Embeds GPS data into EXIF metadata (suitable for mapping applications like Google Photos and Apple Photos).
 - **Clean Exit**: Handles interruptions gracefully without errors or incomplete file saves.
 
+# Planned upcoming features
+- Executable + tray icon
+- Automatic startup with sim – would love help with this!
 ---
 
 ## Installation

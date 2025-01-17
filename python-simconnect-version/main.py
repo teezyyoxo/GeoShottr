@@ -9,6 +9,12 @@
 """
 ######### CHANGELOG #########
 
+# Version 1.3.1.0 (script v1.3 + executable v1.0 = en juntos "v1.3.1.0")
+# - Added System Tray integration using PyStray.
+# - Script now runs in a separate thread (for more herspers).
+# - Right-click menu in the System Tray allows for graceful exit.
+# - System Tray icon supports custom icons (icon_image var).
+
 # Version 1.2.6
 # - Restored normal operation -- script now writes EXIF data to the down-converted JPEG again. Sorry about breaking that!
 # - Back to square one with handling Super Resolution screenshots. Oy vey...
@@ -139,10 +145,14 @@
 ## BEGIN! ##
 
 import os
+import sys
 from time import sleep
 from SimConnect import SimConnect, AircraftRequests
 from PIL import Image
 import piexif
+import pystray
+from pystray import MenuItem as item
+from threading import Thread
 
 # Function to convert to decimal degrees from DMS (degrees, minutes, seconds)
 def convert_to_decimal_degrees(dms):
@@ -282,5 +292,21 @@ def main():
     except Exception as e:
         print(f"An error occurred: {e}")
 
+# Function to quit the application
+def quit_action(icon, item):
+    icon.stop()
+
+# Function to run the system tray icon
+def create_system_tray_icon():
+    icon_image = Image.open(r"C:\Users\monte\GitHub\geoshottr\geoshottr-icon.png")  # path to icon file
+    icon = pystray.Icon("FlightSimGeoTagger", icon_image, menu=pystray.Menu(
+        item('Quit', quit_action)
+    ))
+
+    # Start the image monitoring in a separate thread so it runs in parallel
+    Thread(target=monitor_and_process_images, daemon=True).start()
+
+    icon.run()
+
 if __name__ == "__main__":
-    main()
+    create_system_tray_icon()

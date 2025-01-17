@@ -1,13 +1,21 @@
 """
 =======================
  GeoShottr - Geotagging MSFS Screenshots
- Version 1.2.6 (current)
+ Version 1.4.1.1 (current)
  By PBandJamf AKA TeezyYoxO
  =======================
 """
 
 """
 ######### CHANGELOG #########
+
+# Version 1.4.1.1 (script v1.4 + executable v1.1)
+# - Attempted to fix issue of script not terminating with ctrl+c in console, but am getting nowhere. 
+# - Both the script and executable both work beautifully as-is.
+# - Onward and upward from here on out.
+
+# Version 1.3a1.0 (script v1.3a + executable v1.0)
+# - Adjusted the thread function call to main instead of one that is nonexistent.
 
 # Version 1.3.1.0 (script v1.3 + executable v1.0 = en juntos "v1.3.1.0")
 # - Added System Tray integration using PyStray.
@@ -152,7 +160,10 @@ from PIL import Image
 import piexif
 import pystray
 from pystray import MenuItem as item
-from threading import Thread
+from threading import Thread, Event
+
+# Add a global event flag for clean thread termination
+stop_event = Event()
 
 # Function to convert to decimal degrees from DMS (degrees, minutes, seconds)
 def convert_to_decimal_degrees(dms):
@@ -253,7 +264,7 @@ def main():
         # Initialize tracking of existing files in each directory
         existing_files = {dir_path: set(os.listdir(dir_path)) for dir_path in screenshot_dirs}
 
-        while True:
+        while not stop_event.is_set():  # Graceful exit condition
             for dir_path in screenshot_dirs:
                 # Get current files in the directory
                 current_files = set(os.listdir(dir_path))
@@ -289,24 +300,33 @@ def main():
 
     except KeyboardInterrupt:
         print("Exiting gracefully...")
+        stop_event.set()  # Signal the thread to exit
     except Exception as e:
         print(f"An error occurred: {e}")
 
 # Function to quit the application
 def quit_action(icon, item):
+    stop_event.set()  # Set the stop event to signal the thread to stop
     icon.stop()
 
 # Function to run the system tray icon
 def create_system_tray_icon():
     icon_image = Image.open(r"C:\Users\monte\GitHub\geoshottr\geoshottr-icon.png")  # path to icon file
-    icon = pystray.Icon("FlightSimGeoTagger", icon_image, menu=pystray.Menu(
+    icon = pystray.Icon("GeoShottr", icon_image, menu=pystray.Menu(
         item('Quit', quit_action)
     ))
 
     # Start the image monitoring in a separate thread so it runs in parallel
-    Thread(target=monitor_and_process_images, daemon=True).start()
+    thread = Thread(target=main, daemon=True)
+    thread.start()
 
-    icon.run()
+    # Handle the system tray icon loop
+    try:
+        icon.run()
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt caught in pystray loop, exiting...")
+        stop_event.set()
+        icon.stop()
 
 if __name__ == "__main__":
     create_system_tray_icon()

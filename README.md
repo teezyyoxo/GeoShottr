@@ -1,3 +1,5 @@
+### THE SIMCONNECT VERSION IS THE ONLY FUNCTIONAL VERSION FOR RIGHT NOW :) --dev 16.1.24
+
 # Geoshottr
 
 **Geoshottr** is a Python-based tool that automatically adds geolocation metadata (latitude, longitude, and altitude) to your Microsoft Flight Simulator screenshots. It detects screenshots saved by the game, retrieves geospatial data, and embeds the information into the images, so you can view them on a map or use them in photo apps that support geotagging.
@@ -12,6 +14,9 @@
 - **EXIF Metadata**: Embeds GPS data into EXIF metadata (suitable for mapping applications like Google Photos and Apple Photos).
 - **Clean Exit**: Handles interruptions gracefully without errors or incomplete file saves.
 
+# Planned upcoming features
+- Executable + tray icon
+- Automatic startup with sim – would love help with this!
 ---
 
 ## Installation

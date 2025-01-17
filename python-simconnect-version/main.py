@@ -9,10 +9,14 @@
 """
 ######### CHANGELOG #########
 
+# Version 1.2.6
+# - Restored normal operation -- script now writes EXIF data to the down-converted JPEG again. Sorry about breaking that!
+# - Back to square one with handling Super Resolution screenshots. Oy vey...
+
 # Version 1.2.5
-# Fixed processing of super-resolution screenshots to handle both large and standard images effectively.
-# Added validation for PNG and other image types when using OpenCV for super-resolution images.
-# Reworked error handling during image loading and EXIF data insertion to avoid unexpected script failures.
+# - Fixed processing of super-resolution screenshots to handle both large and standard images effectively.
+# - Added validation for PNG and other image types when using OpenCV for super-resolution images.
+# - Reworked error handling during image loading and EXIF data insertion to avoid unexpected script failures.
 
 # Version 1.2.4
 # - Super-Resolution Support: Added OpenCV handling for "super-resolution" screenshots (e.g., 5120x2880 from NVIDIA overlay).
@@ -145,12 +149,8 @@
 import os
 from time import sleep
 from SimConnect import SimConnect, AircraftRequests
-from PIL import Image, ImageFile  # Grouped Pillow imports
-import cv2  # OpenCV for handling large images
+from PIL import Image
 import piexif
-
-ImageFile.LOAD_TRUNCATED_IMAGES = True  # Allow Pillow to load incomplete/large images
-
 
 # Function to convert to decimal degrees from DMS (degrees, minutes, seconds)
 def convert_to_decimal_degrees(dms):
@@ -183,70 +183,54 @@ def create_gps_info(latitude, longitude, altitude):
         'GPSLongitudeDecimal': longitude_decimal
     }
 
-# Function to add EXIF data (geotagging) to images
+# Edit image EXIF and save as JPEG in a subfolder
 def add_location_to_exif(image_path, latitude, longitude, altitude):
-    if latitude is None or longitude is None:
-        print(f"Skipping EXIF update for {image_path} as location data is missing.")
-        return
+    img = Image.open(image_path)
+
+    # Format the Description correctly
+    description = f"Longitude: {longitude} | Latitude: {latitude} | Altitude: {altitude} (feet)"
 
     try:
-        # Open image
-        image = Image.open(image_path)
+        # Create subfolder "Geotagged" if it doesn't exist
+        geotagged_folder = os.path.join(os.path.dirname(image_path), "Geotagged")
+        os.makedirs(geotagged_folder, exist_ok=True)
 
-        # Check if the image has EXIF data
-        exif_data = image.info.get("exif", None)
-        if exif_data is None:
-            print(f"No EXIF data found in {image_path}. Skipping EXIF update.")
-            return
+        # Check if the image is PNG and convert to JPEG
+        if img.format == 'PNG':
+            # Create a new JPEG image in the Geotagged folder
+            jpeg_path = os.path.join(geotagged_folder, os.path.basename(image_path).replace('.png', '.jpg'))
+            img.convert('RGB').save(jpeg_path, 'JPEG')
+            print(f"Successfully converted {image_path} to {jpeg_path}")
 
-        # Convert latitude and longitude to EXIF format
-        gps_info = {
-            piexif.GPSIFD.GPSLatitudeRef: 'N' if latitude >= 0 else 'S',
-            piexif.GPSIFD.GPSLongitudeRef: 'E' if longitude >= 0 else 'W',
-            piexif.GPSIFD.GPSLatitude: convert_to_dms(abs(latitude)),
-            piexif.GPSIFD.GPSLongitude: convert_to_dms(abs(longitude)),
-            piexif.GPSIFD.GPSAltitude: int(altitude * 3.28084)  # Convert meters to feet
-        }
+            # Add the description to the JPEG image
+            img = Image.open(jpeg_path)
 
-        # Prepare EXIF data
-        exif_dict = piexif.load(exif_data) if exif_data else {}
-        exif_dict['GPS'] = gps_info
+            # Create a new EXIF structure as there's no existing EXIF
+            exif_dict = {
+                "0th": {piexif.ImageIFD.Make: "Microsoft Flight Simulator", piexif.ImageIFD.Model: "Screenshot"},
+                "GPS": {}
+            }
 
-        # Insert EXIF data into image
-        exif_bytes = piexif.dump(exif_dict)
-        image.save(image_path, "JPEG", exif=exif_bytes)
+            # Add the GPS data to the EXIF
+            gps_info = create_gps_info(latitude, longitude, altitude)
+            exif_dict['GPS'] = {piexif.GPSIFD.GPSLatitude: gps_info['GPSLatitude'],
+                                piexif.GPSIFD.GPSLongitude: gps_info['GPSLongitude'],
+                                piexif.GPSIFD.GPSAltitude: gps_info['GPSAltitude'],
+                                piexif.GPSIFD.GPSLatitudeRef: gps_info['GPSLatitudeRef'],
+                                piexif.GPSIFD.GPSLongitudeRef: gps_info['GPSLongitudeRef']}
 
-        print(f"Updated EXIF data for {image_path} - Longitude: {longitude} | Latitude: {latitude} | Altitude: {altitude} (feet)")
+            # Convert EXIF data back to bytes and save the image
+            exif_bytes = piexif.dump(exif_dict)
+            img.save(jpeg_path, exif=exif_bytes)
+            print(f"Updated EXIF data for {jpeg_path} - {description}")
+
+        else:
+            # If not PNG, just print the location info
+            print(f"No conversion needed for {image_path}, skipping.")
+            print(f"Description: {description}")
 
     except Exception as e:
-        print(f"Error adding EXIF data to {image_path}: {e}")
-
-# Function to convert a decimal degree to DMS (Degrees, Minutes, Seconds) format
-def convert_to_dms(degree):
-    degrees = int(degree)
-    minutes = int((degree - degrees) * 60)
-    seconds = (degree - degrees - minutes / 60) * 3600
-    return ((degrees, 1), (minutes, 1), (seconds * 100, 100))
-
-# Function to handle super-resolution screenshots
-def handle_super_resolution_image(image_path):
-    if image_path.lower().startswith("microsoft flight simulator super-resolution"):
-        print(f"Detected super-resolution screenshot, using OpenCV for processing.")
-        try:
-            # Check if the file is a valid PNG before processing with OpenCV
-            if image_path.lower().endswith('.png'):
-                raise ValueError(f"PNG file detected. Skipping OpenCV processing for {image_path}")
-
-            img = cv2.imread(image_path)  # Attempt to read using OpenCV
-            if img is None:
-                raise ValueError(f"OpenCV cannot open the image: {image_path}")
-
-            # If it's a valid image, convert BGR to RGB
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            img_pil = Image.fromarray(img)  # Convert to PIL Image for further handling
-        except Exception as e:
-            print(f"Error processing super-resolution image: {e}")
-            return  # Skip further processing if the image is corrupted or invalid
+        print(f"Failed to save metadata for {image_path}: {e}")
 
 # Main function to retrieve data and update EXIF
 def main():
@@ -278,6 +262,12 @@ def main():
                     if new_file.lower().endswith(".png") and "Microsoft Flight Simulator" in new_file:
                         screenshot_path = os.path.join(dir_path, new_file)
 
+                        # Check for Super-Resolution images based on filename and size
+                        if "Super-Resolution" in new_file or os.path.getsize(screenshot_path) > 10 * 1024 * 1024:
+                            print(f"High-res image detected: {new_file}")
+                        else:
+                            print(f"Regular image detected: {new_file}")
+
                         # Get aircraft location data
                         latitude = aq.get("PLANE_LATITUDE")
                         longitude = aq.get("PLANE_LONGITUDE")
@@ -287,11 +277,8 @@ def main():
                         print(f"Path: {screenshot_path}")
                         print(f"Latitude: {latitude}, Longitude: {longitude}, Altitude: {altitude}")
 
-                        # Handle super-resolution images
-                        if "Super-Resolution" in new_file:
-                            handle_super_resolution_image(screenshot_path)
-                        else:
-                            add_location_to_exif(screenshot_path, latitude, longitude, altitude)
+                        # Add location data to EXIF and save as JPEG
+                        add_location_to_exif(screenshot_path, latitude, longitude, altitude)
 
                 # Update the file set for the directory
                 existing_files[dir_path] = current_files

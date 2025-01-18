@@ -9,6 +9,10 @@
 """
 ######### CHANGELOG #########
 
+# Version 1.5.1.2 (script v1.5 + executable v1.2)
+# - Corrected path definition to images/icons and such for executable.
+# - Added path for X-Plane screenshots to screenshot_dirs.
+
 # Version 1.4.1.1 (script v1.4 + executable v1.1)
 # - Attempted to fix issue of script not terminating with ctrl+c in console, but am getting nowhere. 
 # - Both the script and executable both work beautifully as-is.
@@ -165,6 +169,17 @@ from threading import Thread, Event
 # Add a global event flag for clean thread termination
 stop_event = Event()
 
+# Helper function to get the correct path to bundled resources
+def resource_path(relative_path):
+    """ Get the correct path to a resource, whether running in a bundled exe or from source code. """
+    try:
+        # PyInstaller creates a temp folder for bundled resources
+        base_path = sys._MEIPASS
+    except Exception:
+        # If not running from a bundled exe, use the current directory
+        base_path = os.path.dirname(__file__)
+    return os.path.join(base_path, relative_path)
+
 # Function to convert to decimal degrees from DMS (degrees, minutes, seconds)
 def convert_to_decimal_degrees(dms):
     degrees, minutes, seconds = dms
@@ -257,7 +272,9 @@ def main():
         # Specify folders to monitor
         screenshot_dirs = [
             r"S:\MSFS Recordings\Microsoft Flight Simulator",
-            r"C:\Users\monte\Videos\Captures"
+            r"S:\MSFS Recordings\Microsoft Flight Simulator 2024",
+            r"C:\Users\monte\Videos\Captures",
+            r"S:\MSFS Recordings\X-Plane"
         ]
         print(f"Watching for screenshots in the following directories: {', '.join(screenshot_dirs)}")
 
@@ -311,7 +328,7 @@ def quit_action(icon, item):
 
 # Function to run the system tray icon
 def create_system_tray_icon():
-    icon_image = Image.open(r"C:\Users\monte\GitHub\geoshottr\geoshottr-icon.png")  # path to icon file
+    icon_image = Image.open(r"C:\Users\monte\GitHub\geoshottr\images\geoshottr.ico")  # path to icon file
     icon = pystray.Icon("GeoShottr", icon_image, menu=pystray.Menu(
         item('Quit', quit_action)
     ))

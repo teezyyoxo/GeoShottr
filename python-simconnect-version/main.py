@@ -1,7 +1,7 @@
 """
 =======================
  GeoShottr - Geotagging MSFS Screenshots
- Version 1.4.1.1 (current)
+ Version 1.6.1.2 (current)
  By PBandJamf AKA TeezyYoxO
  =======================
 """

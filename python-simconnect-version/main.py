@@ -9,6 +9,11 @@
 """
 ######### CHANGELOG #########
 
+# Version 1.6.1.2 (hopefully this versioning makes sense by now)
+# - Added some debugging; the actual operations are not running when the executable is run standalone.
+# - ... or so I think. 
+# - Stay tuned.
+
 # Version 1.5.1.2 (script v1.5 + executable v1.2)
 # - Corrected path definition to images/icons and such for executable.
 # - Added path for X-Plane screenshots to screenshot_dirs.
@@ -148,10 +153,6 @@
 # - Monitors a specified folder for new screenshots.
 # - Adds location data to screenshot EXIF metadata.
 #   
-# Future Plans:
-# - Automate taking screenshots directly from the script.
-# - Add user-configurable settings for screenshot folder and EXIF fields.
-# - Handle non-image files more gracefully.
 """
 
 ## BEGIN! ##
@@ -328,6 +329,7 @@ def quit_action(icon, item):
 
 # Function to run the system tray icon
 def create_system_tray_icon():
+    print("Creating system tray icon...")  # Debugging print
     icon_image = Image.open(r"C:\Users\monte\GitHub\geoshottr\images\geoshottr.ico")  # path to icon file
     icon = pystray.Icon("GeoShottr", icon_image, menu=pystray.Menu(
         item('Quit', quit_action)
@@ -336,6 +338,9 @@ def create_system_tray_icon():
     # Start the image monitoring in a separate thread so it runs in parallel
     thread = Thread(target=main, daemon=True)
     thread.start()
+
+    print("Thread started...")  # Debugging print to check if the thread starts
+
 
     # Handle the system tray icon loop
     try:

@@ -1,7 +1,7 @@
 """
 =======================
  GeoShottr - Geotagging MSFS Screenshots
- Version 1.6.1.2 (current)
+ Version 1.6.1.3 (current)
  By PBandJamf AKA TeezyYoxO
  =======================
 """
@@ -9,10 +9,11 @@
 """
 ######### CHANGELOG #########
 
+# Version 1.6.1.3
+# - Updated executable to include the added debugging.
+
 # Version 1.6.1.2 (hopefully this versioning makes sense by now)
 # - Added some debugging; the actual operations are not running when the executable is run standalone.
-# - ... or so I think. 
-# - Stay tuned.
 
 # Version 1.5.1.2 (script v1.5 + executable v1.2)
 # - Corrected path definition to images/icons and such for executable.

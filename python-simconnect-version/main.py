@@ -9,6 +9,9 @@
 """
 ######### CHANGELOG #########
 
+# Version 1.7.2
+# - Colorized error log label.
+
 # Version 1.7.1
 # - Added timeout for file write operations to avoid "image is truncated" errors.
 
@@ -183,6 +186,15 @@ stop_event = Event()
 # adjust this as needed
 FILE_WRITE_DELAY_SECONDS = 3
 
+# === Console Colors ===
+RESET = "\033[0m"
+RED = "\033[0;31m"
+GREEN = "\033[0;32m"
+YELLOW = "\033[0;33m"
+BLUE = "\033[0;34m"
+CYAN = "\033[0;36m"
+BOLD = "\033[1m"
+
 # Helper function to get the correct path to bundled resources
 def resource_path(relative_path):
     """ Get the correct path to a resource, whether running in a bundled exe or from source code. """
@@ -272,7 +284,7 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
             print(f"Description: {description}")
 
     except Exception as e:
-        print(f"[ERROR] Failed to save metadata for {image_path}: {e}")
+        print(f"{RED}[ERROR]{RESET} Failed to save metadata for {image_path}: {e}")
 
 # Main function to retrieve data and update EXIF
 def main():

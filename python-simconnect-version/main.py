@@ -165,6 +165,7 @@
 
 import os
 import sys
+import time
 from time import sleep
 from SimConnect import SimConnect, AircraftRequests
 from PIL import Image
@@ -175,6 +176,9 @@ from threading import Thread, Event
 
 # Add a global event flag for clean thread termination
 stop_event = Event()
+# this is the delay before writing the file to disk, to ensure all data is ready, to avoid the "image is truncated" error
+# adjust this as needed
+FILE_WRITE_DELAY_SECONDS = 3
 
 # Helper function to get the correct path to bundled resources
 def resource_path(relative_path):
@@ -281,7 +285,6 @@ def main():
         screenshot_dirs = [
             r"C:\Users\monte\Videos\Captures",
             r"C:\Users\monte\Videos\NVIDIA\Microsoft Flight Simulator 2024", # Updated path for MSFS screenshots
-            r"C:\Users\monte\Videos\NVIDIA\X-Plane 12", # Added X-Plane screenshots directory
         ]
         print("[📂 MONITORING] Screenshot folders:")
         for path in screenshot_dirs:
@@ -314,6 +317,7 @@ def main():
 
                         print(f"[📍 LOCATION] Lat: {latitude:.6f} | Lon: {longitude:.6f} | Alt: {altitude:.0f} ft")
                         print(f"[📁 SOURCE]   {screenshot_path}")
+                        time.sleep(FILE_WRITE_DELAY_SECONDS)
 
                         # Add location data to EXIF and save as JPEG
                         add_location_to_exif(screenshot_path, latitude, longitude, altitude)

@@ -273,10 +273,9 @@ def main():
 
         # Specify folders to monitor
         screenshot_dirs = [
-            r"S:\MSFS Recordings\Microsoft Flight Simulator",
-            r"S:\MSFS Recordings\Microsoft Flight Simulator 2024",
             r"C:\Users\monte\Videos\Captures",
-            r"S:\MSFS Recordings\X-Plane"
+            r"C:\Users\monte\Videos\NVIDIA\Microsoft Flight Simulator 2024", # Updated path for MSFS screenshots
+            r"C:\Users\monte\Videos\NVIDIA\X-Plane 12", # Added X-Plane screenshots directory
         ]
         print(f"Watching for screenshots in the following directories: {', '.join(screenshot_dirs)}")
 
@@ -331,7 +330,7 @@ def quit_action(icon, item):
 # Function to run the system tray icon
 def create_system_tray_icon():
     print("Creating system tray icon...")  # Debugging print
-    icon_image = Image.open(r"C:\Users\monte\GitHub\geoshottr\images\geoshottr.ico")  # path to icon file
+    icon_image = Image.open(r"C:\Users\monte\Documents\GitHub\geoshottr\images\geoshottr.ico")  # path to icon file
     icon = pystray.Icon("GeoShottr", icon_image, menu=pystray.Menu(
         item('Quit', quit_action)
     ))

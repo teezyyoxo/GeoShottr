@@ -9,6 +9,9 @@
 """
 ######### CHANGELOG #########
 
+# Version 1.7.1
+# - Added timeout for file write operations to avoid "image is truncated" errors.
+
 # Version 1.7
 # - Updated screenshot paths.
 # - Corrected exit behavior (ctrl+c now works properly).

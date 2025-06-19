@@ -1,7 +1,7 @@
 """
 =======================
  GeoShottr - Geotag your flightsim screenshots!
- Version 1.7.1
+ Version 1.7.2
  By PBandJamf AKA TeezyYoxO
  =======================
 """

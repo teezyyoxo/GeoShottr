@@ -1,13 +1,18 @@
 """
 =======================
- GeoShottr - Geotagging MSFS Screenshots
- Version 1.6.1.3 (current)
+ GeoShottr - Geotag your flightsim screenshots!
+ Version 1.7
  By PBandJamf AKA TeezyYoxO
  =======================
 """
 
 """
 ######### CHANGELOG #########
+
+# Version 1.7
+# - Updated screenshot paths.
+# - Corrected exit behavior (ctrl+c now works properly).
+# - Prettified console output (just a little bit).
 
 # Version 1.6.1.3
 # - Updated executable to include the added debugging.
@@ -230,7 +235,7 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
             # Create a new JPEG image in the Geotagged folder
             jpeg_path = os.path.join(geotagged_folder, os.path.basename(image_path).replace('.png', '.jpg'))
             img.convert('RGB').save(jpeg_path, 'JPEG')
-            print(f"Successfully converted {image_path} to {jpeg_path}")
+            print(f"[✅ SAVED] JPEG created: {jpeg_path}")
 
             # Add the description to the JPEG image
             img = Image.open(jpeg_path)
@@ -252,7 +257,7 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
             # Convert EXIF data back to bytes and save the image
             exif_bytes = piexif.dump(exif_dict)
             img.save(jpeg_path, exif=exif_bytes)
-            print(f"Updated EXIF data for {jpeg_path} - {description}")
+            print(f"[🛰️  GEO] EXIF updated with location metadata.")
 
         else:
             # If not PNG, just print the location info
@@ -260,7 +265,7 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
             print(f"Description: {description}")
 
     except Exception as e:
-        print(f"Failed to save metadata for {image_path}: {e}")
+        print(f"[ERROR] Failed to save metadata for {image_path}: {e}")
 
 # Main function to retrieve data and update EXIF
 def main():
@@ -268,8 +273,9 @@ def main():
         # Connect to MSFS SimConnect
         sm = SimConnect()
         aq = AircraftRequests(sm)
-
-        print("Connected to Microsoft Flight Simulator.")
+        print("\n🛰️  GeoShottr initialized")
+        print("-----------------------------------------------------\n")
+        print("[🛫 CONNECTED] Microsoft Flight Simulator detected.")
 
         # Specify folders to monitor
         screenshot_dirs = [
@@ -277,7 +283,9 @@ def main():
             r"C:\Users\monte\Videos\NVIDIA\Microsoft Flight Simulator 2024", # Updated path for MSFS screenshots
             r"C:\Users\monte\Videos\NVIDIA\X-Plane 12", # Added X-Plane screenshots directory
         ]
-        print(f"Watching for screenshots in the following directories: {', '.join(screenshot_dirs)}")
+        print("[📂 MONITORING] Screenshot folders:")
+        for path in screenshot_dirs:
+            print(f"   • {path}")
 
         # Initialize tracking of existing files in each directory
         existing_files = {dir_path: set(os.listdir(dir_path)) for dir_path in screenshot_dirs}
@@ -295,18 +303,17 @@ def main():
 
                         # Check for Super-Resolution images based on filename and size
                         if "Super-Resolution" in new_file or os.path.getsize(screenshot_path) > 10 * 1024 * 1024:
-                            print(f"High-res image detected: {new_file}")
+                            print(f"\n[🖼️  DETECTED] High-res screenshot: {new_file}")
                         else:
-                            print(f"Regular image detected: {new_file}")
+                            print(f"\n[🖼️  DETECTED] Screenshot: {new_file}")
 
                         # Get aircraft location data
                         latitude = aq.get("PLANE_LATITUDE")
                         longitude = aq.get("PLANE_LONGITUDE")
                         altitude = aq.get("PLANE_ALTITUDE")
 
-                        print(f"New screenshot detected: {new_file}")
-                        print(f"Path: {screenshot_path}")
-                        print(f"Latitude: {latitude}, Longitude: {longitude}, Altitude: {altitude}")
+                        print(f"[📍 LOCATION] Lat: {latitude:.6f} | Lon: {longitude:.6f} | Alt: {altitude:.0f} ft")
+                        print(f"[📁 SOURCE]   {screenshot_path}")
 
                         # Add location data to EXIF and save as JPEG
                         add_location_to_exif(screenshot_path, latitude, longitude, altitude)
@@ -329,26 +336,28 @@ def quit_action(icon, item):
 
 # Function to run the system tray icon
 def create_system_tray_icon():
-    print("Creating system tray icon...")  # Debugging print
-    icon_image = Image.open(r"C:\Users\monte\Documents\GitHub\geoshottr\images\geoshottr.ico")  # path to icon file
+    print("[📌 TRAY] Creating system tray icon...")
+    icon_image = Image.open(r"C:\Users\monte\Documents\GitHub\geoshottr\images\geoshottr.ico")
     icon = pystray.Icon("GeoShottr", icon_image, menu=pystray.Menu(
         item('Quit', quit_action)
     ))
 
-    # Start the image monitoring in a separate thread so it runs in parallel
     thread = Thread(target=main, daemon=True)
     thread.start()
+    print("[🔄 THREAD] Screenshot monitor started.")
+    
+    icon.run_detached()
+    return icon
 
-    print("Thread started...")  # Debugging print to check if the thread starts
-
-
-    # Handle the system tray icon loop
-    try:
-        icon.run()
-    except KeyboardInterrupt:
-        print("KeyboardInterrupt caught in pystray loop, exiting...")
-        stop_event.set()
-        icon.stop()
-
+# handle application exit gracefully
 if __name__ == "__main__":
-    create_system_tray_icon()
+    tray_icon = create_system_tray_icon()
+    
+    try:
+        while not stop_event.is_set():
+            sleep(1)
+    except KeyboardInterrupt:
+        print("\n[🔻 EXIT] Ctrl+C received. Stopping GeoShottr...")
+        stop_event.set()
+        tray_icon.stop()
+

@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('C:/Users/monte/GitHub/geoshottr/images/*', 'images')],
+    datas=[('C:/Users/monte/Documents/GitHub/GeoShottr/images/*', 'images')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -19,9 +19,9 @@ pyz = PYZ(a.pure)
 
 # Define version info resource in the versioninfo block
 version_info = {
-    'version': '1.2',
-    'product_version': '1.2',
-    'file_version': '1.2.0',
+    'version': '1.7.2',
+    'product_version': '1.7.2',
+    'file_version': '1.7.2',
     'company_name': 'GeoShottr',
     'file_description': 'GeoShottr Application',
     'product_name': 'GeoShottr',
@@ -48,7 +48,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['C:/Users/monte/GitHub/geoshottr/images/geoshottr.ico'],
+    icon=['C:/Users/monte/Documents/GitHub/Geoshottr/images/geoshottr.ico'],
     versioninfo=version_info,
     distpath=r'C:\Users\monte\GitHub\geoshottr\dist'
 )

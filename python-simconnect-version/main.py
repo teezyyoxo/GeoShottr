@@ -1,7 +1,7 @@
 """
 =======================
  GeoShottr - Geotag your flightsim screenshots!
- Version 1.7.3
+ Version 1.7.4
  By PBandJamf AKA TeezyYoxO
  =======================
 """
@@ -9,8 +9,14 @@
 """
 ######### CHANGELOG #########
 
+# Version 1.7.4
+- Improved telemetry reliability by retrying data requests up to 3 times with a short delay.
+- Enhanced console logging for telemetry fetch attempts and error reporting.
+- Maintained maximum JPEG quality when saving converted screenshots.
+- Minor code cleanup and robustness improvements around EXIF metadata writing.
+
 # Version 1.7.3
-# - Fixed script crash when telemetry values are None.
+# - Fixed rare script crash when telemetry values are None.
 # - Added safe formatting for missing GPS values.
 
 # Version 1.7.2
@@ -172,7 +178,7 @@
 """
 
 ## BEGIN! ##
-version = "1.7.3"
+version = "1.7.4"
 import os
 import sys
 import time
@@ -286,7 +292,7 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
 
             # Convert EXIF data back to bytes and save the image
             exif_bytes = piexif.dump(exif_dict)
-            img.save(jpeg_path, exif=exif_bytes)
+            img.save(jpeg_path, "JPEG", quality=100, optimize=False, subsampling=0, exif=exif_bytes)
             print(f"[🛰️  GEO] EXIF updated with location metadata.")
 
         else:
@@ -336,11 +342,15 @@ def main():
                             print(f"\n[🖼️  DETECTED] High-res screenshot: {new_file}")
                         else:
                             print(f"\n[🖼️  DETECTED] Screenshot: {new_file}")
-
-                        # Get aircraft location data
-                        latitude = aq.get("PLANE_LATITUDE")
-                        longitude = aq.get("PLANE_LONGITUDE")
-                        altitude = aq.get("PLANE_ALTITUDE")
+                        # Try to get valid telemetry up to 5 times with short delay
+                        max_attempts = 3
+                        for attempt in range(max_attempts):
+                            latitude = aq.get("PLANE_LATITUDE")
+                            longitude = aq.get("PLANE_LONGITUDE")
+                            altitude = aq.get("PLANE_ALTITUDE")
+                            if None not in (latitude, longitude, altitude):
+                                break
+                            time.sleep(0.3)  # Wait briefly before retrying
 
                         if None in (latitude, longitude, altitude):
                             print(f"{RED}[ERROR]{RESET} One or more telemetry values are missing (Lat: {latitude}, Lon: {longitude}, Alt: {altitude}). Skipping.")

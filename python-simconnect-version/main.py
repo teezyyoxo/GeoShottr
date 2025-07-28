@@ -1,13 +1,17 @@
 """
 =======================
  GeoShottr - Geotag your flightsim screenshots!
- Version 1.7.2
+ Version 1.7.3
  By PBandJamf AKA TeezyYoxO
  =======================
 """
 
 """
 ######### CHANGELOG #########
+
+# Version 1.7.3
+# - Fixed script crash when telemetry values are None.
+# - Added safe formatting for missing GPS values.
 
 # Version 1.7.2
 # - Colorized error log label.
@@ -168,7 +172,7 @@
 """
 
 ## BEGIN! ##
-
+version = "1.7.3"
 import os
 import sys
 import time
@@ -194,6 +198,13 @@ YELLOW = "\033[0;33m"
 BLUE = "\033[0;34m"
 CYAN = "\033[0;36m"
 BOLD = "\033[1m"
+
+# Bugfix: Ensure that the script can handle missing or malformed data gracefully
+def safe_format(value, fmt="{:.6f}", default="N/A"):
+    try:
+        return fmt.format(value)
+    except (ValueError, TypeError):
+        return default
 
 # Helper function to get the correct path to bundled resources
 def resource_path(relative_path):
@@ -237,7 +248,7 @@ def create_gps_info(latitude, longitude, altitude):
         'GPSLongitudeDecimal': longitude_decimal
     }
 
-# Edit image EXIF and save as JPEG in a subfolder
+# Edit image EXIF and save as JPEG in a subfolder, handle errors gracefully
 def add_location_to_exif(image_path, latitude, longitude, altitude):
     img = Image.open(image_path)
 
@@ -299,7 +310,8 @@ def main():
         # Specify folders to monitor
         screenshot_dirs = [
             r"C:\Users\monte\Videos\Captures",
-            r"C:\Users\monte\Videos\NVIDIA\Microsoft Flight Simulator 2024", # Updated path for MSFS screenshots
+            r"C:\Users\monte\Videos\NVIDIA\Microsoft Flight Simulator 2024",
+            r"C:\Users\monte\Videos\NVIDIA\Microsoft Flight Simulator" # Updated path for MSFS screenshots
         ]
         print("[📂 MONITORING] Screenshot folders:")
         for path in screenshot_dirs:
@@ -330,7 +342,10 @@ def main():
                         longitude = aq.get("PLANE_LONGITUDE")
                         altitude = aq.get("PLANE_ALTITUDE")
 
-                        print(f"[📍 LOCATION] Lat: {latitude:.6f} | Lon: {longitude:.6f} | Alt: {altitude:.0f} ft")
+                        if None in (latitude, longitude, altitude):
+                            print(f"{RED}[ERROR]{RESET} One or more telemetry values are missing (Lat: {latitude}, Lon: {longitude}, Alt: {altitude}). Skipping.")
+                            continue
+                        print(f"[📍 LOCATION] Lat: {safe_format(latitude)} | Lon: {safe_format(longitude)} | Alt: {safe_format(altitude, '{:.0f}')} ft")
                         print(f"[📁 SOURCE]   {screenshot_path}")
                         time.sleep(FILE_WRITE_DELAY_SECONDS)
 

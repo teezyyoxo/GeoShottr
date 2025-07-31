@@ -1,13 +1,16 @@
 """
 =======================
  GeoShottr - Geotag your flightsim screenshots!
- Version 1.7.4
+ Version 1.7.5
  By PBandJamf AKA TeezyYoxO
  =======================
 """
 
 """
 ######### CHANGELOG #########
+
+# Version 1.7.5
+- Modified console output to use colorized labels for better readability. Further modifications to come.
 
 # Version 1.7.4
 - Improved telemetry reliability by retrying data requests up to 3 times with a short delay.
@@ -178,7 +181,7 @@
 """
 
 ## BEGIN! ##
-version = "1.7.4"
+version = "1.7.5"
 import os
 import sys
 import time
@@ -310,8 +313,10 @@ def main():
         sm = SimConnect()
         aq = AircraftRequests(sm)
         print("\n🛰️  GeoShottr initialized")
+        print(f"Version: {version}")
+        print("-----------------------------------------------------")
         print("-----------------------------------------------------\n")
-        print("[🛫 CONNECTED] Microsoft Flight Simulator detected.")
+        print("{GREEN}[🛫 CONNECTED]{GREEN} Microsoft Flight Simulator detected.")
 
         # Specify folders to monitor
         screenshot_dirs = [
@@ -322,6 +327,8 @@ def main():
         print("[📂 MONITORING] Screenshot folders:")
         for path in screenshot_dirs:
             print(f"   • {path}")
+            print("-----------------------------------------------------")
+            print("Waiting for screenshots...")
 
         # Initialize tracking of existing files in each directory
         existing_files = {dir_path: set(os.listdir(dir_path)) for dir_path in screenshot_dirs}
@@ -371,7 +378,7 @@ def main():
         print("Exiting gracefully...")
         stop_event.set()  # Signal the thread to exit
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"{RED}[ERROR]{RED} An error occurred: {e}")
 
 # Function to quit the application
 def quit_action(icon, item):
@@ -380,7 +387,7 @@ def quit_action(icon, item):
 
 # Function to run the system tray icon
 def create_system_tray_icon():
-    print("[📌 TRAY] Creating system tray icon...")
+    print("[📌 TRAY] Initializing system tray icon...")
     icon_image = Image.open(r"C:\Users\monte\Documents\GitHub\geoshottr\images\geoshottr.ico")
     icon = pystray.Icon("GeoShottr", icon_image, menu=pystray.Menu(
         item('Quit', quit_action)
@@ -388,7 +395,7 @@ def create_system_tray_icon():
 
     thread = Thread(target=main, daemon=True)
     thread.start()
-    print("[🔄 THREAD] Screenshot monitor started.")
+    print("[🔄 THREAD] Screenshot monitoring started.")
     
     icon.run_detached()
     return icon

@@ -1,4 +1,13 @@
-# CHANGELOG
+# Changelog
+
+Version 1.7.6
+- Consolidated monitoring output: screenshot directories are listed once under a single header instead of repeating "Waiting for screenshots..." for each directory.
+- Colorized the labels for clearer console output.
+- Extracted monitor thread startup into `start_monitoring_thread()` for sanity, I guess.
+- Added `CAMERA_MODEL` EXIF tag for converted JPEGs (sets Camera Model to "iPhone 19 Pro Max" by default -- because, why not?)
+- Improved SimConnect telemetry handling: the monitor will handle I/O errors more gracefully and attempt reconnects instead of spamming the console with repeated low-level errors.
+- Minor console output and formatting tweaks.
+
  Version 1.7.5
 - Modified console output to use colorized labels for better readability. Further modifications to come.
 

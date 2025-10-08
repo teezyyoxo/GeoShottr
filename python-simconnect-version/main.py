@@ -8,7 +8,7 @@
 
 
 ## BEGIN! ##
-version = "1.7.5a"
+version = "1.7.6"
 import os
 import sys
 import time
@@ -25,6 +25,9 @@ stop_event = Event()
 # this is the delay before writing the file to disk, to ensure all data is ready, to avoid the "image is truncated" error
 # adjust this as needed
 FILE_WRITE_DELAY_SECONDS = 3
+
+# Camera model to write into EXIF ImageIFD.Model. Can literally be anything ;)
+CAMERA_MODEL = "iPhone 19 Pro Max"
 
 # === Console Colors ===
 RESET = "\033[0m"
@@ -101,14 +104,14 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
             # Create a new JPEG image in the Geotagged folder
             jpeg_path = os.path.join(geotagged_folder, os.path.basename(image_path).replace('.png', '.jpg'))
             img.convert('RGB').save(jpeg_path, 'JPEG')
-            print(f"[✅ SAVED] JPEG created: {jpeg_path}")
+            print(f"{GREEN}[✅ SAVED]{RESET} JPEG created: {jpeg_path}")
 
             # Add the description to the JPEG image
             img = Image.open(jpeg_path)
 
             # Create a new EXIF structure as there's no existing EXIF
             exif_dict = {
-                "0th": {piexif.ImageIFD.Make: "Microsoft Flight Simulator", piexif.ImageIFD.Model: "Screenshot"},
+                "0th": {piexif.ImageIFD.Make: "Microsoft Flight Simulator", piexif.ImageIFD.Model: CAMERA_MODEL},
                 "GPS": {}
             }
 
@@ -123,7 +126,7 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
             # Convert EXIF data back to bytes and save the image
             exif_bytes = piexif.dump(exif_dict)
             img.save(jpeg_path, "JPEG", quality=100, optimize=False, subsampling=0, exif=exif_bytes)
-            print(f"[🛰️  GEO] EXIF updated with location metadata.")
+            print(f"[🛰️ GEO] EXIF updated with location metadata.")
 
         else:
             # If not PNG, just print the location info
@@ -136,13 +139,22 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
 # Main function to retrieve data and update EXIF
 def main():
     try:
-        # Connect to MSFS SimConnect
-        sm = SimConnect()
-        aq = AircraftRequests(sm)
-        print("\n🛰️  GeoShottr initialized")
-        print(f"Version: {version}")
-        print("-----------------------------------------------------\n")
-        print("{GREEN}[🛫 CONNECTED]{GREEN} Microsoft Flight Simulator detected.")
+        # Connect to MSFS SimConnect (may fail if sim not running)
+        try:
+            sm = SimConnect()
+            aq = AircraftRequests(sm)
+            connected = True
+        except Exception as conn_exc:
+            sm = None
+            aq = None
+            connected = False
+            print(f"{YELLOW}[⚠️  WARN]{RESET} Could not connect to SimConnect: {conn_exc}")
+        # Note: startup header moved to print_startup_info() so it can be shown
+        # before the system tray initializes. Connection status is printed below.
+        if connected:
+            print(f"{GREEN}[🛫 CONNECTED]{RESET} Microsoft Flight Simulator detected.")
+        else:
+            print(f"{RED}[🔴 DISCONNECTED]{RESET} Microsoft Flight Simulator not detected. Still monitoring for screenshots, and will attempt to reconnect when a new one is detected.")
 
         # Specify folders to monitor
         screenshot_dirs = [
@@ -150,11 +162,10 @@ def main():
             r"C:\Users\monte\Videos\NVIDIA\Microsoft Flight Simulator 2024",
             r"C:\Users\monte\Videos\NVIDIA\Microsoft Flight Simulator" # Updated path for MSFS screenshots
         ]
-        print("[📂 MONITORING] Screenshot folders:")
+        print(f"{GREEN}[📂 MONITORING]{RESET} Waiting for screenshots in the following directories:")
         for path in screenshot_dirs:
-            print(f"   • {path}")
-            print("-----------------------------------------------------")
-            print("Waiting for screenshots...")
+            print(f" - {path}")
+        print("-----------------------------------------------------")
 
         # Initialize tracking of existing files in each directory
         existing_files = {dir_path: set(os.listdir(dir_path)) for dir_path in screenshot_dirs}
@@ -172,18 +183,46 @@ def main():
 
                         # Check for Super-Resolution images based on filename and size
                         if "Super-Resolution" in new_file or os.path.getsize(screenshot_path) > 10 * 1024 * 1024:
-                            print(f"\n[🖼️  DETECTED] High-res screenshot: {new_file}")
+                            print(f"\n[🖼️ DETECTED] High-res screenshot: {new_file}")
                         else:
-                            print(f"\n[🖼️  DETECTED] Screenshot: {new_file}")
-                        # Try to get valid telemetry up to 5 times with short delay
+                            print(f"\n[🖼️ DETECTED] Screenshot: {new_file}")
+                        # Try to get valid telemetry up to 3 times with short delay
                         max_attempts = 3
+                        latitude = longitude = altitude = None
                         for attempt in range(max_attempts):
-                            latitude = aq.get("PLANE_LATITUDE")
-                            longitude = aq.get("PLANE_LONGITUDE")
-                            altitude = aq.get("PLANE_ALTITUDE")
+                            # Ensure we have an active SimConnect connection; try to reconnect if not
+                            if aq is None:
+                                try:
+                                    sm = SimConnect()
+                                    aq = AircraftRequests(sm)
+                                    print(f"{GREEN}[RECONNECTED]{RESET} Connected to SimConnect.")
+                                except Exception:
+                                    # Could not connect right now; wait a bit and retry
+                                    time.sleep(1)
+                                    continue
+
+                            try:
+                                latitude = aq.get("PLANE_LATITUDE")
+                                longitude = aq.get("PLANE_LONGITUDE")
+                                altitude = aq.get("PLANE_ALTITUDE")
+                            except OSError as ose:
+                                # Low-level SimConnect / Windows error (e.g. sim crashed or sleep/wakeup)
+                                print(f"{YELLOW}[WARN]{RESET} SimConnect I/O error: {ose}; will attempt reconnect.")
+                                aq = None
+                                sm = None
+                                time.sleep(1)
+                                continue
+                            except Exception as e:
+                                # Generic error reading telemetry - mark disconnected and retry
+                                print(f"{RED}[ERROR]{RESET} Error reading telemetry: {e}")
+                                aq = None
+                                sm = None
+                                time.sleep(1)
+                                continue
+
                             if None not in (latitude, longitude, altitude):
                                 break
-                            time.sleep(0.3)  # Wait briefly before retrying
+                            time.sleep(0.5)  # Wait briefly before retrying
 
                         if None in (latitude, longitude, altitude):
                             print(f"{RED}[ERROR]{RESET} One or more telemetry values are missing (Lat: {latitude}, Lon: {longitude}, Alt: {altitude}). Skipping.")
@@ -218,23 +257,34 @@ def create_system_tray_icon():
     icon = pystray.Icon("GeoShottr", icon_image, menu=pystray.Menu(
         item('Quit', quit_action)
     ))
-
-    thread = Thread(target=main, daemon=True)
-    thread.start()
-    print("[🔄 THREAD] Screenshot monitoring started.")
-    
+# Start the monitoring thread
+    start_monitoring_thread()
     icon.run_detached()
     return icon
 
+def start_monitoring_thread() -> Thread:
+    thread = Thread(target=main, daemon=True)
+    thread.start()
+    #print("[🔄 THREAD] Screenshot monitoring started.")
+    return thread
+
+# Print startup header/version info
+def print_startup_info():
+    print("\n🛰️  GeoShottr initialized")
+    print(f"Version: {version}")
+    print("-----------------------------------------------------")
+
 # handle application exit gracefully
 if __name__ == "__main__":
+    # Print startup banner before initializing system tray so it appears first
+    print_startup_info()
     tray_icon = create_system_tray_icon()
     
     try:
         while not stop_event.is_set():
             sleep(1)
     except KeyboardInterrupt:
-        print("\n[🔻 EXIT] Ctrl+C received. Stopping GeoShottr...")
+        print("\n[🔻 EXIT] Ctrl+C received. Stopping GeoShottr...\n")
         stop_event.set()
         tray_icon.stop()
 

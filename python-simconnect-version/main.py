@@ -8,7 +8,7 @@
 
 
 ## BEGIN! ##
-version = "1.7.6"
+from version import __version__ as version
 import os
 import sys
 import time
@@ -29,6 +29,9 @@ FILE_WRITE_DELAY_SECONDS = 3
 # Camera model to write into EXIF ImageIFD.Model. Can literally be anything ;)
 CAMERA_MODEL = "iPhone 19 Pro Max"
 
+# Log file for debugging when launched by MSFS (console is hidden)
+LOG_FILE = os.path.expanduser("~/AppData/Local/GeoShottr/geoshottr_debug.log")
+
 # === Console Colors ===
 RESET = "\033[0m"
 RED = "\033[0;31m"
@@ -38,7 +41,38 @@ BLUE = "\033[0;34m"
 CYAN = "\033[0;36m"
 BOLD = "\033[1m"
 
-# Bugfix: Ensure that the script can handle missing or malformed data gracefully
+# Logging function that writes to both console and file
+def log_message(message, level="INFO"):
+    """Log message to file only"""
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    log_entry = f"[{timestamp}] {level}: {message}"
+    
+    try:
+        log_dir = os.path.dirname(LOG_FILE)
+        os.makedirs(log_dir, exist_ok=True)
+        with open(LOG_FILE, "a") as f:
+            f.write(log_entry + "\n")
+    except Exception as e:
+        # If logging fails, silently continue
+        pass
+
+# Function to get screenshot directories dynamically
+def get_screenshot_directories():
+    """Get a list of screenshot directories, checking if they exist"""
+    username = os.getenv("USERNAME")
+    potential_dirs = [
+        os.path.expanduser("~/Videos/Captures"),
+        os.path.expanduser("~/Videos/NVIDIA/Microsoft Flight Simulator 2024"),
+        os.path.expanduser("~/Videos/NVIDIA/Microsoft Flight Simulator"),
+    ]
+    
+    # Filter to only directories that exist
+    existing_dirs = [d for d in potential_dirs if os.path.isdir(d)]
+    
+    if not existing_dirs:
+        log_message(f"WARNING: No screenshot directories found. Checked: {potential_dirs}", "WARN")
+    
+    return existing_dirs if existing_dirs else potential_dirs
 def safe_format(value, fmt="{:.6f}", default="N/A"):
     try:
         return fmt.format(value)
@@ -52,8 +86,8 @@ def resource_path(relative_path):
         # PyInstaller creates a temp folder for bundled resources
         base_path = sys._MEIPASS
     except Exception:
-        # If not running from a bundled exe, use the current directory
-        base_path = os.path.dirname(__file__)
+        # If not running from a bundled exe, use the parent directory (since main.py is in python-simconnect-version)
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base_path, relative_path)
 
 # Function to convert to decimal degrees from DMS (degrees, minutes, seconds)
@@ -149,93 +183,116 @@ def main():
             aq = None
             connected = False
             print(f"{YELLOW}[⚠️  WARN]{RESET} Could not connect to SimConnect: {conn_exc}")
+            log_message(f"Could not connect to SimConnect: {conn_exc}", "WARN")
         # Note: startup header moved to print_startup_info() so it can be shown
         # before the system tray initializes. Connection status is printed below.
         if connected:
             print(f"{GREEN}[🛫 CONNECTED]{RESET} Microsoft Flight Simulator detected.")
+            log_message("Microsoft Flight Simulator detected and connected", "INFO")
         else:
             print(f"{RED}[🔴 DISCONNECTED]{RESET} Microsoft Flight Simulator not detected. Still monitoring for screenshots, and will attempt to reconnect when a new one is detected.")
+            log_message("Microsoft Flight Simulator not detected. Monitoring will continue with reconnection attempts.", "INFO")
 
         # Specify folders to monitor
-        screenshot_dirs = [
-            r"C:\Users\monte\Videos\Captures",
-            r"C:\Users\monte\Videos\NVIDIA\Microsoft Flight Simulator 2024",
-            r"C:\Users\monte\Videos\NVIDIA\Microsoft Flight Simulator" # Updated path for MSFS screenshots
-        ]
+        screenshot_dirs = get_screenshot_directories()
+        
+        if not screenshot_dirs:
+            log_message(f"{RED}[ERROR]{RESET} No screenshot directories found! GeoShottr cannot function.", "ERROR")
+            print(f"{RED}[ERROR]{RESET} No screenshot directories found! GeoShottr cannot function.")
+            stop_event.set()
+            return
+        
+        log_message(f"{GREEN}[📂 MONITORING]{RESET} Waiting for screenshots in the following directories: {screenshot_dirs}", "INFO")
         print(f"{GREEN}[📂 MONITORING]{RESET} Waiting for screenshots in the following directories:")
         for path in screenshot_dirs:
             print(f" - {path}")
         print("-----------------------------------------------------")
 
         # Initialize tracking of existing files in each directory
-        existing_files = {dir_path: set(os.listdir(dir_path)) for dir_path in screenshot_dirs}
+        existing_files = {}
+        for dir_path in screenshot_dirs:
+            try:
+                existing_files[dir_path] = set(os.listdir(dir_path))
+                log_message(f"Initialized monitoring for {dir_path}", "INFO")
+            except PermissionError as pe:
+                log_message(f"Permission denied accessing {dir_path}: {pe}", "ERROR")
+                print(f"{RED}[ERROR]{RESET} Permission denied accessing {dir_path}: {pe}")
+            except Exception as e:
+                log_message(f"Error accessing {dir_path}: {e}", "ERROR")
+                print(f"{RED}[ERROR]{RESET} Error accessing {dir_path}: {e}")
 
         while not stop_event.is_set():  # Graceful exit condition
             for dir_path in screenshot_dirs:
-                # Get current files in the directory
-                current_files = set(os.listdir(dir_path))
-                new_files = current_files - existing_files[dir_path]
+                try:
+                    # Get current files in the directory
+                    current_files = set(os.listdir(dir_path))
+                    new_files = current_files - existing_files.get(dir_path, set())
 
-                for new_file in new_files:
-                    # Check if the file is a PNG and contains "Microsoft Flight Simulator"
-                    if new_file.lower().endswith(".png") and "Microsoft Flight Simulator" in new_file:
-                        screenshot_path = os.path.join(dir_path, new_file)
+                    for new_file in new_files:
+                        # Check if the file is a PNG and contains "Microsoft Flight Simulator"
+                        if new_file.lower().endswith(".png") and "Microsoft Flight Simulator" in new_file:
+                            screenshot_path = os.path.join(dir_path, new_file)
 
-                        # Check for Super-Resolution images based on filename and size
-                        if "Super-Resolution" in new_file or os.path.getsize(screenshot_path) > 10 * 1024 * 1024:
-                            print(f"\n[🖼️ DETECTED] High-res screenshot: {new_file}")
-                        else:
-                            print(f"\n[🖼️ DETECTED] Screenshot: {new_file}")
-                        # Try to get valid telemetry up to 3 times with short delay
-                        max_attempts = 3
-                        latitude = longitude = altitude = None
-                        for attempt in range(max_attempts):
-                            # Ensure we have an active SimConnect connection; try to reconnect if not
-                            if aq is None:
+                            # Check for Super-Resolution images based on filename and size
+                            if "Super-Resolution" in new_file or os.path.getsize(screenshot_path) > 10 * 1024 * 1024:
+                                print(f"\n[🖼️ DETECTED] High-res screenshot: {new_file}")
+                            else:
+                                print(f"\n[🖼️ DETECTED] Screenshot: {new_file}")
+                            # Try to get valid telemetry up to 3 times with short delay
+                            max_attempts = 3
+                            latitude = longitude = altitude = None
+                            for attempt in range(max_attempts):
+                                # Ensure we have an active SimConnect connection; try to reconnect if not
+                                if aq is None:
+                                    try:
+                                        sm = SimConnect()
+                                        aq = AircraftRequests(sm)
+                                        print(f"{GREEN}[RECONNECTED]{RESET} Connected to SimConnect.")
+                                    except Exception:
+                                        # Could not connect right now; wait a bit and retry
+                                        time.sleep(1)
+                                        continue
+
                                 try:
-                                    sm = SimConnect()
-                                    aq = AircraftRequests(sm)
-                                    print(f"{GREEN}[RECONNECTED]{RESET} Connected to SimConnect.")
-                                except Exception:
-                                    # Could not connect right now; wait a bit and retry
+                                    latitude = aq.get("PLANE_LATITUDE")
+                                    longitude = aq.get("PLANE_LONGITUDE")
+                                    altitude = aq.get("PLANE_ALTITUDE")
+                                except OSError as ose:
+                                    # Low-level SimConnect / Windows error (e.g. sim crashed or sleep/wakeup)
+                                    print(f"{YELLOW}[WARN]{RESET} SimConnect I/O error: {ose}; will attempt reconnect.")
+                                    aq = None
+                                    sm = None
+                                    time.sleep(1)
+                                    continue
+                                except Exception as e:
+                                    # Generic error reading telemetry - mark disconnected and retry
+                                    print(f"{RED}[ERROR]{RESET} Error reading telemetry: {e}")
+                                    aq = None
+                                    sm = None
                                     time.sleep(1)
                                     continue
 
-                            try:
-                                latitude = aq.get("PLANE_LATITUDE")
-                                longitude = aq.get("PLANE_LONGITUDE")
-                                altitude = aq.get("PLANE_ALTITUDE")
-                            except OSError as ose:
-                                # Low-level SimConnect / Windows error (e.g. sim crashed or sleep/wakeup)
-                                print(f"{YELLOW}[WARN]{RESET} SimConnect I/O error: {ose}; will attempt reconnect.")
-                                aq = None
-                                sm = None
-                                time.sleep(1)
+                                if None not in (latitude, longitude, altitude):
+                                    break
+                                time.sleep(0.5)  # Wait briefly before retrying
+
+                            if None in (latitude, longitude, altitude):
+                                print(f"{RED}[ERROR]{RESET} One or more telemetry values are missing (Lat: {latitude}, Lon: {longitude}, Alt: {altitude}). Skipping.")
                                 continue
-                            except Exception as e:
-                                # Generic error reading telemetry - mark disconnected and retry
-                                print(f"{RED}[ERROR]{RESET} Error reading telemetry: {e}")
-                                aq = None
-                                sm = None
-                                time.sleep(1)
-                                continue
+                            print(f"[📍 LOCATION] Lat: {safe_format(latitude)} | Lon: {safe_format(longitude)} | Alt: {safe_format(altitude, '{:.0f}')} ft")
+                            print(f"[📁 SOURCE]   {screenshot_path}")
+                            time.sleep(FILE_WRITE_DELAY_SECONDS)
 
-                            if None not in (latitude, longitude, altitude):
-                                break
-                            time.sleep(0.5)  # Wait briefly before retrying
+                            # Add location data to EXIF and save as JPEG
+                            add_location_to_exif(screenshot_path, latitude, longitude, altitude)
 
-                        if None in (latitude, longitude, altitude):
-                            print(f"{RED}[ERROR]{RESET} One or more telemetry values are missing (Lat: {latitude}, Lon: {longitude}, Alt: {altitude}). Skipping.")
-                            continue
-                        print(f"[📍 LOCATION] Lat: {safe_format(latitude)} | Lon: {safe_format(longitude)} | Alt: {safe_format(altitude, '{:.0f}')} ft")
-                        print(f"[📁 SOURCE]   {screenshot_path}")
-                        time.sleep(FILE_WRITE_DELAY_SECONDS)
-
-                        # Add location data to EXIF and save as JPEG
-                        add_location_to_exif(screenshot_path, latitude, longitude, altitude)
-
-                # Update the file set for the directory
-                existing_files[dir_path] = current_files
+                    # Update the file set for the directory
+                    existing_files[dir_path] = current_files
+                    
+                except PermissionError:
+                    log_message(f"Permission denied reading {dir_path}", "WARN")
+                except Exception as e:
+                    log_message(f"Error monitoring {dir_path}: {e}", "WARN")
 
             sleep(1)
 
@@ -243,7 +300,11 @@ def main():
         print("Exiting gracefully...")
         stop_event.set()  # Signal the thread to exit
     except Exception as e:
-        print(f"{RED}[ERROR]{RED} An error occurred: {e}")
+        error_msg = f"An error occurred in main(): {e}"
+        print(f"{RED}[ERROR]{RESET} {error_msg}")
+        log_message(error_msg, "ERROR")
+        import traceback
+        log_message(f"Traceback: {traceback.format_exc()}", "ERROR")
 
 # Function to quit the application
 def quit_action(icon, item):
@@ -253,7 +314,14 @@ def quit_action(icon, item):
 # Function to run the system tray icon
 def create_system_tray_icon():
     print("[📌 TRAY] Initializing system tray icon...")
-    icon_image = Image.open(r"C:\Users\monte\Documents\GitHub\geoshottr\images\geoshottr.ico")
+    icon_path = resource_path(os.path.join("images", "geoshottr.ico"))
+    try:
+        icon_image = Image.open(icon_path)
+    except Exception as e:
+        print(f"{YELLOW}[⚠️  WARN]{RESET} Could not load icon from {icon_path}: {e}")
+        # Create a simple fallback icon if file not found
+        icon_image = Image.new('RGB', (64, 64), color=(73, 109, 137))
+    
     icon = pystray.Icon("GeoShottr", icon_image, menu=pystray.Menu(
         item('Quit', quit_action)
     ))
@@ -276,15 +344,22 @@ def print_startup_info():
 
 # handle application exit gracefully
 if __name__ == "__main__":
-    # Print startup banner before initializing system tray so it appears first
-    print_startup_info()
-    tray_icon = create_system_tray_icon()
-    
     try:
-        while not stop_event.is_set():
-            sleep(1)
-    except KeyboardInterrupt:
-        print("\n[🔻 EXIT] Ctrl+C received. Stopping GeoShottr...\n")
-        stop_event.set()
-        tray_icon.stop()
+        # Print startup banner before initializing system tray so it appears first
+        print_startup_info()
+        tray_icon = create_system_tray_icon()
+        
+        try:
+            while not stop_event.is_set():
+                sleep(1)
+        except KeyboardInterrupt:
+            print("\n[🔻 EXIT] Ctrl+C received. Stopping GeoShottr...\n")
+            stop_event.set()
+            tray_icon.stop()
+    except Exception as e:
+        error_msg = f"Critical error in application startup: {e}"
+        print(f"{RED}[CRITICAL ERROR]{RESET} {error_msg}")
+        log_message(error_msg, "CRITICAL")
+        import traceback
+        log_message(f"Traceback: {traceback.format_exc()}", "CRITICAL")
 

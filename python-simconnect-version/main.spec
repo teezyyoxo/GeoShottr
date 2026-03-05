@@ -19,9 +19,9 @@ pyz = PYZ(a.pure)
 
 # Define version info resource in the versioninfo block
 version_info = {
-    'version': '1.7.2',
-    'product_version': '1.7.2',
-    'file_version': '1.7.2',
+    'version': '1.8.0',
+    'product_version': '1.8.0',
+    'file_version': '1.8.0',
     'company_name': 'GeoShottr',
     'file_description': 'GeoShottr Application',
     'product_name': 'GeoShottr',

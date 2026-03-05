@@ -81,13 +81,15 @@ def safe_format(value, fmt="{:.6f}", default="N/A"):
 
 # Helper function to get the correct path to bundled resources
 def resource_path(relative_path):
-    """ Get the correct path to a resource, whether running in a bundled exe or from source code. """
-    try:
-        # PyInstaller creates a temp folder for bundled resources
-        base_path = sys._MEIPASS
-    except Exception:
-        # If not running from a bundled exe, use the parent directory (since main.py is in python-simconnect-version)
+    """Return the absolute path to a resource for both dev and PyInstaller builds."""
+    
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        # Running inside PyInstaller bundle
+        base_path = sys._MEIPASS  # type: ignore
+    else:
+        # Running from source
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
     return os.path.join(base_path, relative_path)
 
 # Function to convert to decimal degrees from DMS (degrees, minutes, seconds)
@@ -134,36 +136,52 @@ def add_location_to_exif(image_path, latitude, longitude, altitude):
         os.makedirs(geotagged_folder, exist_ok=True)
 
         # Check if the image is PNG and convert to JPEG
-        if img.format == 'PNG':
-            # Create a new JPEG image in the Geotagged folder
-            jpeg_path = os.path.join(geotagged_folder, os.path.basename(image_path).replace('.png', '.jpg'))
-            img.convert('RGB').save(jpeg_path, 'JPEG')
-            print(f"{GREEN}[✅ SAVED]{RESET} JPEG created: {jpeg_path}")
+        if img.format == "PNG":
+            jpeg_path = os.path.join(
+                geotagged_folder,
+                os.path.splitext(os.path.basename(image_path))[0] + ".jpg"
+            )
 
-            # Add the description to the JPEG image
-            img = Image.open(jpeg_path)
-
-            # Create a new EXIF structure as there's no existing EXIF
+            # Create a new EXIF structure (since PNG has no EXIF)
             exif_dict = {
-                "0th": {piexif.ImageIFD.Make: "Microsoft Flight Simulator", piexif.ImageIFD.Model: CAMERA_MODEL},
-                "GPS": {}
+                "0th": {
+                    piexif.ImageIFD.Make: "Microsoft Flight Simulator",
+                    piexif.ImageIFD.Model: CAMERA_MODEL,
+                },
+                "GPS": {},
+                "Exif": {},
+                "1st": {},
+                "thumbnail": None,
             }
 
             # Add the GPS data to the EXIF
             gps_info = create_gps_info(latitude, longitude, altitude)
-            exif_dict['GPS'] = {piexif.GPSIFD.GPSLatitude: gps_info['GPSLatitude'],
-                                piexif.GPSIFD.GPSLongitude: gps_info['GPSLongitude'],
-                                piexif.GPSIFD.GPSAltitude: gps_info['GPSAltitude'],
-                                piexif.GPSIFD.GPSLatitudeRef: gps_info['GPSLatitudeRef'],
-                                piexif.GPSIFD.GPSLongitudeRef: gps_info['GPSLongitudeRef']}
+            exif_dict["GPS"] = {
+                piexif.GPSIFD.GPSLatitude: gps_info["GPSLatitude"],
+                piexif.GPSIFD.GPSLongitude: gps_info["GPSLongitude"],
+                piexif.GPSIFD.GPSAltitude: gps_info["GPSAltitude"],
+                piexif.GPSIFD.GPSLatitudeRef: gps_info["GPSLatitudeRef"],
+                piexif.GPSIFD.GPSLongitudeRef: gps_info["GPSLongitudeRef"],
+            }
 
-            # Convert EXIF data back to bytes and save the image
             exif_bytes = piexif.dump(exif_dict)
-            img.save(jpeg_path, "JPEG", quality=100, optimize=False, subsampling=0, exif=exif_bytes)
+
+            # SINGLE PASS: convert to RGB and save ONCE with your desired JPEG params + EXIF
+            img_rgb = img.convert("RGB")
+            img_rgb.save(
+                jpeg_path,
+                "JPEG",
+                quality=100,         # 95 is usually ideal for screenshots; use 100 if you truly want max
+                subsampling=0,      # 4:4:4 keeps chroma detail (prevents mushy text/UI)
+                optimize=False,      # smaller file, same visual quality
+                progressive=True,   # optional; nicer loading behavior
+                exif=exif_bytes,
+            )
+
+            print(f"{GREEN}[✅ SAVED]{RESET} JPEG created w/ EXIF: {jpeg_path}")
             print(f"[🛰️ GEO] EXIF updated with location metadata.")
 
         else:
-            # If not PNG, just print the location info
             print(f"No conversion needed for {image_path}, skipping.")
             print(f"Description: {description}")
 

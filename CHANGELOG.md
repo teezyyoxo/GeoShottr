@@ -1,5 +1,9 @@
 # Changelog
 
+Version 1.8.0
+- **Image conversion quality significantly improved.** PNG screenshots are now converted to JPEG in a single encoding pass using optimized Pillow settings (`quality=100`, `subsampling=0`, `progressive`). This prevents the quality loss previously caused by double-encoding and preserves finer UI details in screenshots.
+- **Refactored resource path handling for PyInstaller builds.** Updated the `resource_path()` helper to safely detect bundled environments using `getattr(sys, "frozen", False)` and `sys._MEIPASS`, improving compatibility when running GeoShottr both from source and as a packaged executable.
+
 Version 1.7.6
 - Consolidated monitoring output: screenshot directories are listed once under a single header instead of repeating "Waiting for screenshots..." for each directory.
 - Colorized the labels for clearer console output.
